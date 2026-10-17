@@ -1,0 +1,48 @@
+{% extends 'tracker/base.html' %}
+{% block title %}{{ project.name }} | 管理画面{% endblock %}
+{% block content %}
+<h1>{{ project.name }}</h1>
+
+<div class="toolbar">
+    <a class="btn primary" href="{% url 'tracker:issue_create' %}?project={{ project.identifier }}">新しいチケット</a>
+    <a class="btn" href="{% url 'tracker:project_update' project.identifier %}">編集</a>
+    <a class="btn" href="{% url 'tracker:issue_list' %}?project={{ project.pk }}">このプロジェクトのチケット</a>
+    <a class="btn danger" href="{% url 'tracker:project_delete' project.identifier %}">削除</a>
+</div>
+
+{% if project.description %}
+<div class="box"><p class="desc">{{ project.description }}</p></div>
+{% endif %}
+
+<h2>概要</h2>
+<dl class="attrs">
+    <dt>識別子</dt><dd>{{ project.identifier }}</dd>
+    <dt>未完了</dt><dd>{{ project.open_issue_count }} 件</dd>
+    <dt>完了</dt><dd>{{ project.closed_issue_count }} 件</dd>
+    {% for label, count in by_tracker %}
+        <dt>{{ label }}</dt><dd>{{ count }} 件</dd>
+    {% endfor %}
+</dl>
+
+<h2>最近のチケット</h2>
+{% if recent_issues %}
+<table class="list">
+    <thead>
+        <tr><th class="num">#</th><th>ステータス</th><th>題名</th><th>担当者</th><th>更新日</th></tr>
+    </thead>
+    <tbody>
+    {% for issue in recent_issues %}
+        <tr {% if not issue.is_open %}class="closed-row"{% endif %}>
+            <td class="num" data-label="#"><a href="{{ issue.get_absolute_url }}">{{ issue.pk }}</a></td>
+            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
+            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">{{ issue.subject }}</a></td>
+            <td class="nowrap" data-label="担当者">{{ issue.assignee|default:"—" }}</td>
+            <td class="nowrap" data-label="更新日">{{ issue.updated_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">チケットがまだありません。</p>
+{% endif %}
+{% endblock %}

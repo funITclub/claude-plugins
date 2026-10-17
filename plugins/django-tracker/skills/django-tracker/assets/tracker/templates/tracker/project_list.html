@@ -1,0 +1,41 @@
+{% extends 'tracker/base.html' %}
+{% block title %}プロジェクト | 管理画面{% endblock %}
+{% block content %}
+<h1>プロジェクト</h1>
+
+<div class="toolbar">
+    <a class="btn primary" href="{% url 'tracker:project_create' %}">新しいプロジェクト</a>
+</div>
+
+{% if projects %}
+<table class="list">
+    <thead>
+        <tr>
+            <th>プロジェクト</th>
+            <th>識別子</th>
+            <th class="num">未完了</th>
+            <th class="num">全件</th>
+            <th>説明</th>
+            <th class="nowrap">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for project in projects %}
+        <tr>
+            <td data-label="プロジェクト"><a href="{{ project.get_absolute_url }}">{{ project.name }}</a></td>
+            <td class="nowrap" data-label="識別子">{{ project.identifier }}</td>
+            <td class="num" data-label="未完了">{{ project.open_count }}</td>
+            <td class="num" data-label="全件">{{ project.total_count }}</td>
+            <td data-label="説明">{{ project.description|truncatechars:60|default:"—" }}</td>
+            <td class="ops" data-label="操作">
+                <a href="{% url 'tracker:project_update' project.identifier %}">編集</a>
+                <a href="{% url 'tracker:project_delete' project.identifier %}">削除</a>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">プロジェクトがまだありません。</p>
+{% endif %}
+{% endblock %}

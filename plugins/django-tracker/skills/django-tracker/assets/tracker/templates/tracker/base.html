@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}管理画面{% endblock %}</title>
+    <style>
+        :root {
+            --header: #2C4056;
+            --header-2: #3E5B76;
+            --link: #16609B;
+            --line: #D7D7D7;
+            --line-soft: #E4E4E4;
+            --bg: #FFFFFF;
+            --panel: #F6F6F6;
+            --panel-2: #FAFAFA;
+            --ink: #303030;
+            --muted: #707070;
+            --new: #D9534F;
+            --progress: #2E7CB8;
+            --resolved: #3C9A5F;
+            --feedback: #B5761A;
+            --closed: #777777;
+            --urgent: #C9302C;
+            --high: #D9822B;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Lucida Grande", Verdana, Meiryo, sans-serif;
+            font-size: 13px; line-height: 1.6;
+            color: var(--ink); background: var(--bg);
+        }
+        a { color: var(--link); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        header.top { background: var(--header); color: #fff; padding: .45rem .9rem; }
+        header.top .title { font-size: .95rem; font-weight: bold; }
+        nav.main {
+            background: var(--header-2); padding: .25rem .9rem;
+            display: flex; flex-wrap: wrap; gap: .1rem;
+        }
+        nav.main a {
+            color: #fff; font-size: .8rem; padding: .25rem .6rem; border-radius: 2px;
+        }
+        nav.main a:hover { background: rgba(255,255,255,.18); text-decoration: none; }
+        nav.main a.is-current { background: rgba(255,255,255,.25); font-weight: bold; }
+
+        main { padding: 1rem .9rem 3rem; max-width: 76rem; }
+        h1 { font-size: 1.25rem; margin: 0 0 .8rem; font-weight: bold; }
+        h2 { font-size: 1rem; margin: 1.4rem 0 .5rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+        p { margin: 0 0 .7rem; }
+
+        .toolbar { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .8rem; }
+        .btn {
+            display: inline-block; font-size: .8rem; padding: .3rem .7rem;
+            border: 1px solid var(--line); border-radius: 3px;
+            background: linear-gradient(#FFFFFF, #EFEFEF);
+            color: var(--ink); cursor: pointer;
+        }
+        .btn:hover { background: linear-gradient(#FFFFFF, #E4E4E4); text-decoration: none; }
+        .btn.primary { border-color: #2C6A99; background: linear-gradient(#4A8CC0, #2E6FA3); color: #fff; }
+        .btn.danger { border-color: #A94442; background: linear-gradient(#D9534F, #C33); color: #fff; }
+
+        .filters {
+            background: var(--panel); border: 1px solid var(--line);
+            border-radius: 3px; padding: .7rem .8rem; margin-bottom: .9rem;
+        }
+        .filters .fields { display: flex; flex-wrap: wrap; gap: .7rem 1rem; align-items: flex-end; }
+        .filters label { display: block; font-size: .72rem; color: var(--muted); margin-bottom: .1rem; }
+        .filters select, .filters input[type=text] {
+            font-size: .8rem; padding: .22rem .3rem;
+            border: 1px solid var(--line); border-radius: 2px; background: #fff;
+        }
+
+        table.list { width: 100%; border-collapse: collapse; font-size: .8rem; }
+        table.list th, table.list td {
+            border: 1px solid var(--line-soft); padding: .35rem .5rem; text-align: left;
+            vertical-align: top;
+        }
+        table.list th {
+            background: var(--panel); font-weight: bold; white-space: nowrap;
+        }
+        table.list th a { color: var(--ink); }
+        table.list tbody tr:nth-child(even) { background: var(--panel-2); }
+        table.list tbody tr:hover { background: #EFF5FB; }
+        td.num, th.num { text-align: right; white-space: nowrap; }
+        td.nowrap, th.nowrap { white-space: nowrap; }
+
+        .badge {
+            display: inline-block; font-size: .7rem; font-weight: bold;
+            border-radius: 2px; padding: .05rem .35rem; color: #fff;
+        }
+        .s-new { background: var(--new); }
+        .s-in_progress { background: var(--progress); }
+        .s-resolved { background: var(--resolved); }
+        .s-feedback { background: var(--feedback); }
+        .s-closed, .s-rejected { background: var(--closed); }
+        .p-urgent { color: var(--urgent); font-weight: bold; }
+        .p-high { color: var(--high); font-weight: bold; }
+        .p-low { color: var(--muted); }
+        .closed-row td.subject a { text-decoration: line-through; color: var(--muted); }
+
+        .bar { background: #E4E4E4; border-radius: 2px; height: .55rem; width: 6rem; overflow: hidden; }
+        .bar span { display: block; height: 100%; background: var(--progress); }
+
+        dl.attrs { display: grid; grid-template-columns: auto 1fr; gap: .25rem .9rem; margin: 0 0 1rem; }
+        dl.attrs dt { color: var(--muted); font-size: .78rem; }
+        dl.attrs dd { margin: 0; font-size: .82rem; }
+
+        .box {
+            border: 1px solid var(--line); border-radius: 3px;
+            padding: .8rem .9rem; background: var(--panel-2); margin-bottom: 1rem;
+        }
+        .desc { white-space: pre-wrap; font-size: .85rem; }
+
+        form.model p { margin: 0 0 .7rem; }
+        form.model label { display: block; font-size: .78rem; color: var(--muted); }
+        form.model input[type=text], form.model input[type=number], form.model input[type=date],
+        form.model select, form.model textarea {
+            font-family: inherit; font-size: .85rem; padding: .3rem;
+            border: 1px solid var(--line); border-radius: 2px; width: 100%; max-width: 34rem;
+            background: #fff;
+        }
+        form.model .errorlist { color: #C33; font-size: .78rem; margin: .1rem 0; padding-left: 1rem; }
+        .helptext { color: var(--muted); font-size: .72rem; }
+        .req { color: #C33; }
+        .warn { color: #A94442; font-weight: bold; }
+        ul.doomed { margin: .3rem 0 .7rem; padding-left: 1.2rem; font-size: .8rem; color: var(--muted); }
+        td.ops { white-space: nowrap; }
+        td.ops a { margin-right: .5rem; font-size: .75rem; }
+
+        .pager { margin-top: .9rem; font-size: .8rem; color: var(--muted); }
+        .pager a { margin: 0 .2rem; }
+        .empty { color: var(--muted); font-style: italic; padding: 1rem 0; }
+
+        @media (max-width: 40rem) {
+            table.list thead { display: none; }
+            table.list, table.list tbody, table.list tr, table.list td { display: block; width: 100%; }
+            table.list tr { border: 1px solid var(--line-soft); margin-bottom: .5rem; }
+            table.list td { border: 0; border-bottom: 1px solid var(--line-soft); }
+            table.list td:last-child { border-bottom: 0; }
+            table.list td::before {
+                content: attr(data-label) " ";
+                color: var(--muted); font-size: .7rem; display: inline-block; min-width: 5.5rem;
+            }
+            td.num, th.num { text-align: left; }
+        }
+    </style>
+</head>
+<body>
+<header class="top"><span class="title">管理画面</span></header>
+<nav class="main">
+    <a href="{% url 'tracker:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
+    <a href="{% url 'tracker:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>
+</nav>
+<main>
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

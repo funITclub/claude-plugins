@@ -1,0 +1,75 @@
+{% extends 'tracker/base.html' %}
+{% block title %}チケット | 管理画面{% endblock %}
+{% block content %}
+<h1>チケット</h1>
+
+<div class="toolbar">
+    <a class="btn primary" href="{% url 'tracker:issue_create' %}">新しいチケット</a>
+</div>
+
+<form class="filters" method="get">
+    <div class="fields">
+        {% for field in filter_form %}
+            <div>
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+            </div>
+        {% endfor %}
+        <div><button class="btn" type="submit">適用</button></div>
+        <div><a class="btn" href="{% url 'tracker:issue_list' %}">解除</a></div>
+    </div>
+</form>
+
+{% if issues %}
+<table class="list">
+    <thead>
+        <tr>
+            <th class="num"><a href="?{{ query_string }}&amp;sort={% if sort == 'id' %}-{% endif %}id">#</a></th>
+            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'tracker' %}-{% endif %}tracker">トラッカー</a></th>
+            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'status' %}-{% endif %}status">ステータス</a></th>
+            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'priority' %}-{% endif %}priority">優先度</a></th>
+            <th><a href="?{{ query_string }}&amp;sort={% if sort == 'subject' %}-{% endif %}subject">題名</a></th>
+            <th class="nowrap">プロジェクト</th>
+            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'assignee' %}-{% endif %}assignee">担当者</a></th>
+            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'due_date' %}-{% endif %}due_date">期日</a></th>
+            <th class="nowrap">進捗</th>
+            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'updated_at' %}-{% endif %}updated_at">更新日</a></th>
+            <th class="nowrap">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for issue in issues %}
+        <tr {% if not issue.is_open %}class="closed-row"{% endif %}>
+            <td class="num" data-label="#"><a href="{{ issue.get_absolute_url }}">{{ issue.pk }}</a></td>
+            <td class="nowrap" data-label="トラッカー">{{ issue.get_tracker_display }}</td>
+            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
+            <td class="nowrap p-{{ issue.priority }}" data-label="優先度">{{ issue.get_priority_display }}</td>
+            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">{{ issue.subject }}</a></td>
+            <td class="nowrap" data-label="プロジェクト"><a href="{{ issue.project.get_absolute_url }}">{{ issue.project.name }}</a></td>
+            <td class="nowrap" data-label="担当者">{{ issue.assignee|default:"—" }}</td>
+            <td class="nowrap" data-label="期日">{{ issue.due_date|date:"Y-m-d"|default:"—" }}</td>
+            <td class="nowrap" data-label="進捗"><span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%</td>
+            <td class="nowrap" data-label="更新日">{{ issue.updated_at|date:"Y-m-d H:i" }}</td>
+            <td class="ops" data-label="操作">
+                <a href="{% url 'tracker:issue_update' issue.pk %}">編集</a>
+                <a href="{% url 'tracker:issue_delete' issue.pk %}">削除</a>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+<p class="pager">
+    {% if page_obj.has_previous %}<a href="?{{ query_string }}&amp;sort={{ sort }}&amp;page={{ page_obj.previous_page_number }}">前へ</a>{% endif %}
+    {{ page_obj.number }} / {{ paginator.num_pages }} ページ（全 {{ paginator.count }} 件）
+    {% if page_obj.has_next %}<a href="?{{ query_string }}&amp;sort={{ sort }}&amp;page={{ page_obj.next_page_number }}">次へ</a>{% endif %}
+</p>
+{% else %}
+<p class="pager">全 {{ issues|length }} 件</p>
+{% endif %}
+
+{% else %}
+<p class="empty">条件に合うチケットはありません。</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'tracker/base.html' %}
+{% block title %}#{{ issue.pk }} {{ issue.subject }} | 管理画面{% endblock %}
+{% block content %}
+<h1>{{ issue.get_tracker_display }} #{{ issue.pk }}</h1>
+
+<div class="toolbar">
+    <a class="btn" href="{% url 'tracker:issue_update' issue.pk %}">編集</a>
+    <a class="btn danger" href="{% url 'tracker:issue_delete' issue.pk %}">削除</a>
+    <a class="btn" href="{% url 'tracker:issue_list' %}">一覧へ</a>
+</div>
+
+<div class="box">
+    <p style="font-size:1rem;font-weight:bold;margin-bottom:.6rem">{{ issue.subject }}</p>
+    <dl class="attrs">
+        <dt>プロジェクト</dt><dd><a href="{{ issue.project.get_absolute_url }}">{{ issue.project.name }}</a></dd>
+        <dt>ステータス</dt><dd><span class="badge s-{{ issue.status }}">{{ issue.get_status_display }}</span></dd>
+        <dt>優先度</dt><dd class="p-{{ issue.priority }}">{{ issue.get_priority_display }}</dd>
+        <dt>担当者</dt><dd>{{ issue.assignee|default:"—" }}</dd>
+        <dt>開始日</dt><dd>{{ issue.start_date|date:"Y-m-d"|default:"—" }}</dd>
+        <dt>期日</dt><dd>{{ issue.due_date|date:"Y-m-d"|default:"—" }}</dd>
+        <dt>進捗率</dt><dd><span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%</dd>
+        <dt>登録日</dt><dd>{{ issue.created_at|date:"Y-m-d H:i" }}</dd>
+        <dt>更新日</dt><dd>{{ issue.updated_at|date:"Y-m-d H:i" }}</dd>
+    </dl>
+</div>
+
+<h2>説明</h2>
+{% if issue.description %}
+    <p class="desc">{{ issue.description }}</p>
+{% else %}
+    <p class="empty">説明はありません。</p>
+{% endif %}
+{% endblock %}
