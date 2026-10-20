@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}管理画面{% endblock %}</title>
+    <title>{% block title %}{{ wg.name }} | 活動ページ{% endblock %}</title>
     <style>
         :root {
             --header: #2C4056;
@@ -35,7 +35,8 @@
         a:hover { text-decoration: underline; }
 
         header.top { background: var(--header); color: #fff; padding: .45rem .9rem; }
-        header.top .title { font-size: .95rem; font-weight: bold; }
+        header.top .title { font-size: .95rem; font-weight: bold; color: #fff; }
+        header.top .code { font-size: .75rem; opacity: .75; margin-right: .5rem; }
         nav.main {
             background: var(--header-2); padding: .25rem .9rem;
             display: flex; flex-wrap: wrap; gap: .1rem;
@@ -101,7 +102,7 @@
         .p-low { color: var(--muted); }
         .closed-row td.subject a { text-decoration: line-through; color: var(--muted); }
 
-        .bar { background: #E4E4E4; border-radius: 2px; height: .55rem; width: 6rem; overflow: hidden; }
+        .bar { display: inline-block; vertical-align: middle; background: #E4E4E4; border-radius: 2px; height: .55rem; width: 6rem; overflow: hidden; }
         .bar span { display: block; height: 100%; background: var(--progress); }
 
         dl.attrs { display: grid; grid-template-columns: auto 1fr; gap: .25rem .9rem; margin: 0 0 1rem; }
@@ -134,6 +135,22 @@
         .pager a { margin: 0 .2rem; }
         .empty { color: var(--muted); font-style: italic; padding: 1rem 0; }
 
+        /* ---- 活動ページのトップ ---- */
+        .lead { font-size: .95rem; color: var(--muted); margin: -.4rem 0 1rem; }
+        .intro { font-size: .9rem; line-height: 1.85; max-width: 48rem; }
+        .intro p { margin: 0 0 .8rem; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .9rem; margin: 1rem 0; }
+        .card { border: 1px solid var(--line); border-radius: 3px; padding: .9rem 1rem; background: var(--panel-2); }
+        .card h2 { margin-top: 0; border: 0; padding: 0; }
+        .card .toolbar { margin: .7rem 0 0; }
+        .stats { display: flex; gap: 1.2rem; margin: 0 0 .5rem; }
+        .stats strong { display: block; font-size: 1.4rem; line-height: 1.2; }
+        .stats span { font-size: .75rem; color: var(--muted); }
+        .bar.wide { display: block; width: 100%; max-width: 16rem; }
+        .overdue { color: var(--urgent); font-weight: bold; }
+        ul.plain { margin: 0; padding-left: 1.1rem; }
+        ul.plain li { margin-bottom: .3rem; }
+
         @media (max-width: 40rem) {
             table.list thead { display: none; }
             table.list, table.list tbody, table.list tr, table.list td { display: block; width: 100%; }
@@ -149,10 +166,12 @@
     </style>
 </head>
 <body>
-<header class="top"><span class="title">管理画面</span></header>
+<header class="top"><a class="title" href="{% url 'WGNAME_activity:home' %}"><span class="code">{{ wg.code }}</span>{{ wg.name }}</a></header>
 <nav class="main">
-    <a href="{% url 'tracker:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
-    <a href="{% url 'tracker:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>
+    <a href="{% url 'WGNAME_activity:home' %}" {% if section == 'home' %}class="is-current"{% endif %}>活動ページ</a>
+    {% if wg.slides_title %}<a href="{% url 'WGNAME_activity:slides' %}">構想資料</a>{% endif %}
+    <a href="{% url 'WGNAME_activity:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
+    <a href="{% url 'WGNAME_activity:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>
 </nav>
 <main>
     {% block content %}{% endblock %}

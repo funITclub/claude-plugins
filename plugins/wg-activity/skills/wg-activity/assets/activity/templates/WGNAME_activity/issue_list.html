@@ -1,10 +1,10 @@
-{% extends 'tracker/base.html' %}
-{% block title %}チケット | 管理画面{% endblock %}
+{% extends 'WGNAME_activity/base.html' %}
+{% block title %}チケット | {{ wg.name }}{% endblock %}
 {% block content %}
 <h1>チケット</h1>
 
 <div class="toolbar">
-    <a class="btn primary" href="{% url 'tracker:issue_create' %}">新しいチケット</a>
+    <a class="btn primary" href="{% url 'WGNAME_activity:issue_create' %}">新しいチケット</a>
 </div>
 
 <form class="filters" method="get">
@@ -16,7 +16,7 @@
             </div>
         {% endfor %}
         <div><button class="btn" type="submit">適用</button></div>
-        <div><a class="btn" href="{% url 'tracker:issue_list' %}">解除</a></div>
+        <div><a class="btn" href="{% url 'WGNAME_activity:issue_list' %}">解除</a></div>
     </div>
 </form>
 
@@ -51,8 +51,8 @@
             <td class="nowrap" data-label="進捗"><span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%</td>
             <td class="nowrap" data-label="更新日">{{ issue.updated_at|date:"Y-m-d H:i" }}</td>
             <td class="ops" data-label="操作">
-                <a href="{% url 'tracker:issue_update' issue.pk %}">編集</a>
-                <a href="{% url 'tracker:issue_delete' issue.pk %}">削除</a>
+                <a href="{% url 'WGNAME_activity:issue_update' issue.pk %}">編集</a>
+                <a href="{% url 'WGNAME_activity:issue_delete' issue.pk %}">削除</a>
             </td>
         </tr>
     {% endfor %}

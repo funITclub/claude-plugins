@@ -1,7 +1,7 @@
-{% extends 'tracker/base.html' %}
-{% block title %}{% if form.instance.pk %}#{{ form.instance.pk }} の編集{% else %}新しいチケット{% endif %} | 管理画面{% endblock %}
+{% extends 'WGNAME_activity/base.html' %}
+{% block title %}{% if form.instance.pk %}{{ form.instance.name }} の編集{% else %}新しいプロジェクト{% endif %} | {{ wg.name }}{% endblock %}
 {% block content %}
-<h1>{% if form.instance.pk %}チケット #{{ form.instance.pk }} の編集{% else %}新しいチケット{% endif %}</h1>
+<h1>{% if form.instance.pk %}プロジェクトの編集{% else %}新しいプロジェクト{% endif %}</h1>
 
 <form class="model" method="post">
     {% csrf_token %}
@@ -16,7 +16,7 @@
     {% endfor %}
     <div class="toolbar">
         <button class="btn primary" type="submit">保存</button>
-        <a class="btn" href="{% if form.instance.pk %}{{ form.instance.get_absolute_url }}{% else %}{% url 'tracker:issue_list' %}{% endif %}">やめる</a>
+        <a class="btn" href="{% url 'WGNAME_activity:project_list' %}">やめる</a>
     </div>
 </form>
 {% endblock %}

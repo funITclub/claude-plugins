@@ -1,5 +1,0 @@
-{
-  "name": "django-tracker",
-  "version": "0.1.0",
-  "description": "Django のプロジェクトに Redmine 風のチケット管理画面を足すスキル。"
-}

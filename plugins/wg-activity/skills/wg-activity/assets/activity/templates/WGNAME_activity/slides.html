@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ wg.slides_title }} | fun IT club</title>
+    <style>
+        /*
+         * 構想資料の見本。WG の資料に合わせて、このファイルを丸ごと書き換えてよい。
+         * 守ること：1 枚＝ <section class="slide" id="s<番号>">、下の .controls と <script> は残す
+         * （ページ送りと「活動ページ」へ戻るリンク）。
+         */
+        :root {
+            --paper: #FFFFFF;
+            --ink: #1E2733;
+            --accent: #2C4056;
+            --tint: #EEF3F9;
+            --amber: #E9A23B;
+            --muted: #5A7187;
+            --rule: #D6E0EA;
+            --font: Meiryo, "Hiragino Kaku Gothic ProN", "Hiragino Sans", system-ui, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0; background: var(--paper); color: var(--ink);
+            font-family: var(--font); font-size: 16px; line-height: 1.7;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        /* ---- 台（1画面1スライド） ---- */
+        .deck { min-height: 100%; display: flex; flex-direction: column; }
+        .stage { flex: 1 1 auto; width: 100%; max-width: 72rem; margin: 0 auto; padding: 1.5rem 1rem 1rem; }
+        /* JS が効くまでは全スライドを縦に並べる（no-script でも読める） */
+        .js .slide { display: none; }
+        .js .slide.is-current { display: block; }
+        .slide { animation: fade .18s ease-out; }
+        @keyframes fade { from { opacity: 0; transform: translateY(.4rem); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .slide { animation: none; } }
+        .slide + .slide { border-top: 1px solid var(--rule); margin-top: 2rem; padding-top: 2rem; }
+        .js .slide + .slide { border-top: 0; margin-top: 0; padding-top: 0; }
+
+        .kicker { font-size: .8rem; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin: 0 0 .35rem; }
+        .slide h2 { font-size: 1.45rem; line-height: 1.45; margin: 0 0 1rem; }
+        .cover { padding: 2rem 0; }
+        .cover h1 { font-size: 1.9rem; line-height: 1.35; margin: 0 0 .8rem; }
+        .cover .lead { font-size: 1.05rem; color: var(--muted); }
+        .card { background: var(--tint); border-radius: .55rem; padding: .9rem 1rem; margin-bottom: .75rem; }
+
+        /* ---- 送り ---- */
+        .controls {
+            position: sticky; bottom: 0; background: rgba(255,255,255,.94);
+            border-top: 1px solid var(--rule);
+            padding: .55rem 1rem calc(.55rem + env(safe-area-inset-bottom));
+            display: none;
+        }
+        .js .controls { display: block; }
+        .controls-inner { max-width: 72rem; margin: 0 auto; display: flex; align-items: center; gap: .7rem; }
+        .nav-btn {
+            font-family: var(--font); font-size: .85rem; font-weight: 700;
+            color: var(--accent); background: var(--tint);
+            border: 0; border-radius: .4rem; padding: .5rem .9rem; cursor: pointer; min-height: 2.5rem;
+        }
+        .nav-btn:disabled { opacity: .35; cursor: default; }
+        .nav-back { font-size: .8rem; font-weight: 700; color: var(--muted); text-decoration: none; white-space: nowrap; }
+        .nav-back:hover { text-decoration: underline; }
+        .counter { font-size: .8rem; font-weight: 700; color: var(--muted); margin: 0 auto; letter-spacing: .06em; }
+        .dots { display: none; gap: .3rem; }
+        .dot { width: .45rem; height: .45rem; border-radius: 50%; background: var(--rule); border: 0; padding: 0; cursor: pointer; }
+        .dot.is-current { background: var(--amber); }
+
+        @media (min-width: 48rem) {
+            body { font-size: 17px; }
+            .stage { padding: 2.5rem 2rem 1.5rem; }
+            .slide h2 { font-size: 2rem; }
+            .cover { padding: 4rem 0; }
+            .cover h1 { font-size: 2.6rem; }
+            .dots { display: flex; }
+        }
+    </style>
+</head>
+<body>
+<div class="deck">
+<main class="stage" id="stage">
+
+    <section class="slide cover" id="s1" aria-label="スライド 1">
+        <p class="kicker">{{ wg.code }}</p>
+        <h1>{{ wg.slides_title }}</h1>
+        <p class="lead">{{ wg.lead }}</p>
+    </section>
+
+    <section class="slide" id="s2" aria-label="スライド 2">
+        <p class="kicker">問題意識</p>
+        <h2>何が困っているのか</h2>
+        <div class="card">ここに、WG が取り組む問題を書く。</div>
+    </section>
+
+    <section class="slide" id="s3" aria-label="スライド 3">
+        <p class="kicker">構想</p>
+        <h2>何を作るのか</h2>
+        <div class="card">ここに、作ろうとしているものと、その狙いを書く。</div>
+    </section>
+
+</main>
+
+<div class="controls">
+    <div class="controls-inner">
+        <a class="nav-back" href="{% url 'WGNAME_activity:home' %}">‹ 活動ページ</a>
+        <button class="nav-btn" id="prev" type="button">‹ 前</button>
+        <span class="counter" id="counter">01 / 03</span>
+        <span class="dots" id="dots"></span>
+        <button class="nav-btn" id="next" type="button">次 ›</button>
+    </div>
+</div>
+</div>
+
+<script>
+(function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    if (!slides.length) { return; }
+    document.documentElement.classList.add('js');
+
+    var prev = document.getElementById('prev');
+    var next = document.getElementById('next');
+    var counter = document.getElementById('counter');
+    var dots = document.getElementById('dots');
+    var current = 0;
+
+    slides.forEach(function (slide, i) {
+        var dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'dot';
+        dot.setAttribute('aria-label', (i + 1) + ' 枚目へ');
+        dot.addEventListener('click', function () { show(i); });
+        dots.appendChild(dot);
+    });
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+    function show(i, skipHash) {
+        current = Math.max(0, Math.min(slides.length - 1, i));
+        slides.forEach(function (slide, n) {
+            slide.classList.toggle('is-current', n === current);
+        });
+        Array.prototype.forEach.call(dots.children, function (dot, n) {
+            dot.classList.toggle('is-current', n === current);
+        });
+        counter.textContent = pad(current + 1) + ' / ' + pad(slides.length);
+        prev.disabled = current === 0;
+        next.disabled = current === slides.length - 1;
+        if (!skipHash) { history.replaceState(null, '', '#' + slides[current].id); }
+        window.scrollTo(0, 0);
+    }
+
+    function fromHash() {
+        var hash = window.location.hash;
+        var found = 0;
+        slides.forEach(function (s, i) { if ('#' + s.id === hash) { found = i; } });
+        show(found, true);
+    }
+
+    prev.addEventListener('click', function () { show(current - 1); });
+    next.addEventListener('click', function () { show(current + 1); });
+    window.addEventListener('hashchange', fromHash);
+
+    document.addEventListener('keydown', function (e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') { return; }
+        if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { show(current + 1); e.preventDefault(); }
+        else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { show(current - 1); e.preventDefault(); }
+        else if (e.key === 'Home') { show(0); e.preventDefault(); }
+        else if (e.key === 'End') { show(slides.length - 1); e.preventDefault(); }
+    });
+
+    var touchX = null, touchY = null;
+    document.addEventListener('touchstart', function (e) {
+        touchX = e.changedTouches[0].clientX;
+        touchY = e.changedTouches[0].clientY;
+    }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+        if (touchX === null) { return; }
+        var dx = e.changedTouches[0].clientX - touchX;
+        var dy = e.changedTouches[0].clientY - touchY;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            show(current + (dx < 0 ? 1 : -1));
+        }
+        touchX = touchY = null;
+    }, { passive: true });
+
+    fromHash();
+}());
+</script>
+</body>
+</html>

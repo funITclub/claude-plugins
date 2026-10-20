@@ -1,13 +1,13 @@
-{% extends 'tracker/base.html' %}
-{% block title %}{{ project.name }} | 管理画面{% endblock %}
+{% extends 'WGNAME_activity/base.html' %}
+{% block title %}{{ project.name }} | {{ wg.name }}{% endblock %}
 {% block content %}
 <h1>{{ project.name }}</h1>
 
 <div class="toolbar">
-    <a class="btn primary" href="{% url 'tracker:issue_create' %}?project={{ project.identifier }}">新しいチケット</a>
-    <a class="btn" href="{% url 'tracker:project_update' project.identifier %}">編集</a>
-    <a class="btn" href="{% url 'tracker:issue_list' %}?project={{ project.pk }}">このプロジェクトのチケット</a>
-    <a class="btn danger" href="{% url 'tracker:project_delete' project.identifier %}">削除</a>
+    <a class="btn primary" href="{% url 'WGNAME_activity:issue_create' %}?project={{ project.identifier }}">新しいチケット</a>
+    <a class="btn" href="{% url 'WGNAME_activity:project_update' project.identifier %}">編集</a>
+    <a class="btn" href="{% url 'WGNAME_activity:issue_list' %}?project={{ project.pk }}">このプロジェクトのチケット</a>
+    <a class="btn danger" href="{% url 'WGNAME_activity:project_delete' project.identifier %}">削除</a>
 </div>
 
 {% if project.description %}

@@ -11,6 +11,9 @@ class Project(models.Model):
     created_at = models.DateTimeField('登録日', auto_now_add=True)
 
     class Meta:
+        # 共有DBを向いてもテーブル名が衝突しないよう db_table を明示する
+        # （会の決まり。homepage の catalog/models.py と同じ）。
+        db_table = 'funitclub_WGNAME_activity_project'
         verbose_name = 'プロジェクト'
         verbose_name_plural = 'プロジェクト'
         ordering = ['name']
@@ -19,7 +22,7 @@ class Project(models.Model):
         return self.name
 
     def get_absolute_url(self):
-        return reverse('tracker:project_detail', args=[self.identifier])
+        return reverse('WGNAME_activity:project_detail', args=[self.identifier])
 
     @property
     def open_issue_count(self):
@@ -77,6 +80,7 @@ class Issue(models.Model):
     updated_at = models.DateTimeField('更新日', auto_now=True)
 
     class Meta:
+        db_table = 'funitclub_WGNAME_activity_issue'
         verbose_name = 'チケット'
         verbose_name_plural = 'チケット'
         ordering = ['-updated_at']
@@ -85,7 +89,7 @@ class Issue(models.Model):
         return '#{} {}'.format(self.pk, self.subject)
 
     def get_absolute_url(self):
-        return reverse('tracker:issue_detail', args=[self.pk])
+        return reverse('WGNAME_activity:issue_detail', args=[self.pk])
 
     @property
     def is_open(self):

@@ -1,5 +1,5 @@
-{% extends 'tracker/base.html' %}
-{% block title %}#{{ issue.pk }} の削除 | 管理画面{% endblock %}
+{% extends 'WGNAME_activity/base.html' %}
+{% block title %}#{{ issue.pk }} の削除 | {{ wg.name }}{% endblock %}
 {% block content %}
 <h1>チケット #{{ issue.pk }} を削除します</h1>
 <div class="box">

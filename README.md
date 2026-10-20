@@ -7,7 +7,7 @@ WG で使い回すスキルを置くマーケットプレイス。
 ターミナルのセッションのプロンプトで：
 
 ```
-/plugin install django-tracker --marketplace funITclub/claude-plugins
+/plugin install wg-activity --marketplace funITclub/claude-plugins
 ```
 
 `y` でマーケットプレイスを追加し、スコープは user（既定）のまま Enter。
@@ -16,7 +16,7 @@ user スコープで入れると、**どのリポジトリで Claude Code を起
 シェルから入れる場合：
 
 ```
-claude plugin install django-tracker --marketplace funITclub/claude-plugins
+claude plugin install wg-activity --marketplace funITclub/claude-plugins
 ```
 
 デスクトップアプリで `/plugin` が使えない場合は、プロンプト横の + → Plugins →
@@ -26,7 +26,14 @@ Add marketplace に `funITclub/claude-plugins` を入れて、Add plugin。
 
 | プラグイン | 中身 |
 |---|---|
-| `django-tracker` | Django のプロジェクトに、Redmine 風のチケット管理画面（`tracker` アプリ）を足すスキル |
+| `wg-activity` | WG のリポジトリに活動ページ（`<WG>_activity` アプリ）を足すスキル。トップに WG の紹介・構想資料への案内・チケットの様子を並べ、構想資料（スライド）と Redmine 風のチケット管理を持つ |
+
+`django-tracker` は `wg-activity` に置き換えた。入れていた人は外してから入れ直す：
+
+```
+claude plugin uninstall django-tracker
+claude plugin install wg-activity --marketplace funITclub/claude-plugins
+```
 
 ## 新しいスキルを足すとき
 

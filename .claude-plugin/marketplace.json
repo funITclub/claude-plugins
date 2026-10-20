@@ -2,6 +2,6 @@
   "name": "funitclub",
   "owner": { "name": "fun IT club" },
   "plugins": [
-    { "name": "django-tracker", "source": "./plugins/django-tracker" }
+    { "name": "wg-activity", "source": "./plugins/wg-activity" }
   ]
 }

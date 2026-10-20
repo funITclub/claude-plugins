@@ -1,12 +1,12 @@
-{% extends 'tracker/base.html' %}
-{% block title %}#{{ issue.pk }} {{ issue.subject }} | 管理画面{% endblock %}
+{% extends 'WGNAME_activity/base.html' %}
+{% block title %}#{{ issue.pk }} {{ issue.subject }} | {{ wg.name }}{% endblock %}
 {% block content %}
 <h1>{{ issue.get_tracker_display }} #{{ issue.pk }}</h1>
 
 <div class="toolbar">
-    <a class="btn" href="{% url 'tracker:issue_update' issue.pk %}">編集</a>
-    <a class="btn danger" href="{% url 'tracker:issue_delete' issue.pk %}">削除</a>
-    <a class="btn" href="{% url 'tracker:issue_list' %}">一覧へ</a>
+    <a class="btn" href="{% url 'WGNAME_activity:issue_update' issue.pk %}">編集</a>
+    <a class="btn danger" href="{% url 'WGNAME_activity:issue_delete' issue.pk %}">削除</a>
+    <a class="btn" href="{% url 'WGNAME_activity:issue_list' %}">一覧へ</a>
 </div>
 
 <div class="box">
