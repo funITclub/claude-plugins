@@ -41,7 +41,7 @@ claude plugin install wg-activity@funitclub
 1. `plugins/<名前>/.claude-plugin/plugin.json` を作る
 2. `plugins/<名前>/skills/<名前>/SKILL.md` にスキルを書く
 3. `.claude-plugin/marketplace.json` の `plugins` に 1 行足す
-4. 入れている人は `claude plugin update` → `/reload-plugins`
+4. 入れている人は `claude plugin update <名前>@funitclub` を流し、Claude Code を開き直す（開いているセッションは `/reload-plugins`）
 
 テンプレート（`wg-template`）と違い、**作成済みの WG リポジトリにも行き渡ります**。
-各自が一度インストールすれば、更新は `claude plugin update` で追えます。
+各自が一度インストールすれば、更新は `claude plugin update wg-activity@funitclub` で追えます。
