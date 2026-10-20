@@ -13,9 +13,9 @@ from .forms import IssueFilterForm, IssueForm, ProjectForm
 from .models import Issue, Project
 
 
-# 本番（homepage の中）は既定で全画面がログイン必須で、WG のメンバーには
-# ログインのアカウントを配っていない。活動ページは全画面を公開にする
-# （各ビューの login_not_required）。公開なので、誰でもチケットを書き換えられる。
+# 本番（homepage の中）は既定で全画面がログイン必須。活動ページは、ログインなしで
+# 見て書けるよう全画面を公開にする（各ビューの login_not_required）。公開なので、
+# 誰でもチケットを書き換えられる。
 
 SORTABLE = {
     'id': 'pk',
