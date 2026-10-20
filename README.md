@@ -4,19 +4,20 @@ WG で使い回すスキルを置くマーケットプレイス。
 
 ## 入れ方
 
-ターミナルのセッションのプロンプトで：
+シェルで、マーケットプレイスを足してから入れる（マーケットプレイスの名前は `funitclub`）：
 
 ```
-/plugin install wg-activity --marketplace funITclub/claude-plugins
+claude plugin marketplace add funITclub/claude-plugins
+claude plugin install wg-activity@funitclub
 ```
 
-`y` でマーケットプレイスを追加し、スコープは user（既定）のまま Enter。
-user スコープで入れると、**どのリポジトリで Claude Code を起動しても使えます**。
+スコープは user（既定）。**どのリポジトリで Claude Code を起動しても使えます**。
 
-シェルから入れる場合：
+ターミナルのセッションのプロンプトからなら：
 
 ```
-claude plugin install wg-activity --marketplace funITclub/claude-plugins
+/plugin marketplace add funITclub/claude-plugins
+/plugin install wg-activity@funitclub
 ```
 
 デスクトップアプリで `/plugin` が使えない場合は、プロンプト横の + → Plugins →
@@ -31,8 +32,8 @@ Add marketplace に `funITclub/claude-plugins` を入れて、Add plugin。
 `django-tracker` は `wg-activity` に置き換えた。入れていた人は外してから入れ直す：
 
 ```
-claude plugin uninstall django-tracker
-claude plugin install wg-activity --marketplace funITclub/claude-plugins
+claude plugin uninstall django-tracker@funitclub
+claude plugin install wg-activity@funitclub
 ```
 
 ## 新しいスキルを足すとき
