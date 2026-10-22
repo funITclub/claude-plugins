@@ -13,7 +13,7 @@
         <p><strong>{{ wg.slides_title }}</strong></p>
         {% if wg.slides_summary %}<p>{{ wg.slides_summary }}</p>{% endif %}
         <div class="toolbar">
-            <a class="btn primary" href="{% url 'WGNAME_activity:slides' %}">スライドを見る</a>
+            <a class="btn primary" href="{% url 'WGNAME_activity:slides' %}" target="_blank" rel="noopener noreferrer" aria-label="スライドを見る（別タブで開きます）">スライドを見る</a>
         </div>
     </section>
     {% endif %}

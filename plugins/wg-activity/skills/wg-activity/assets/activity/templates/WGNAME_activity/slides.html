@@ -8,7 +8,7 @@
         /*
          * 構想資料の見本。WG の資料に合わせて、このファイルを丸ごと書き換えてよい。
          * 守ること：1 枚＝ <section class="slide" id="s<番号>">、下の .controls と <script> は残す
-         * （ページ送りと「活動ページ」へ戻るリンク）。
+         * （ページ送りと「閉じる」ボタン）。
          */
         :root {
             --paper: #FFFFFF;
@@ -105,7 +105,7 @@
 
 <div class="controls">
     <div class="controls-inner">
-        <a class="nav-back" href="{% url 'WGNAME_activity:home' %}">‹ 活動ページ</a>
+        <a class="nav-back" id="close-tab" href="{% url 'WGNAME_activity:home' %}" aria-label="このタブを閉じる">× 閉じる</a>
         <button class="nav-btn" id="prev" type="button">‹ 前</button>
         <span class="counter" id="counter">01 / 03</span>
         <span class="dots" id="dots"></span>
@@ -185,6 +185,15 @@
         }
         touchX = touchY = null;
     }, { passive: true });
+
+    // 活動ページから別タブで開かれるので、閉じれば活動ページに戻る。直接開かれたときなどは
+    // 閉じる操作をブラウザに拒まれる。拒まれても何も起きないので、少し待って活動ページへ移る。
+    document.getElementById('close-tab').addEventListener('click', function (e) {
+        var back = this.href;
+        e.preventDefault();
+        window.close();
+        setTimeout(function () { window.location.href = back; }, 300);
+    });
 
     fromHash();
 }());

@@ -62,7 +62,8 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/wg-activity/scripts/install.py" <WG の名�
 `<WG>_activity/templates/<WG>_activity/slides.html` は見本。WG の資料に差し替える。
 
 - 1 枚＝ `<section class="slide" id="s<番号>">`。末尾の `.controls` と `<script>`（ページ送り）は残す
-- `.controls-inner` の先頭の「‹ 活動ページ」のリンク（`{% url '<WG>_activity:home' %}`）を残す
+- `.controls-inner` の先頭の「× 閉じる」（`id="close-tab"`、`href` は `{% url '<WG>_activity:home' %}`）を残す。
+  スライドはトップとナビから別タブで開くので、閉じれば活動ページに戻る。閉じられないときは `href` の活動ページへ移る
 - `<title>` は `{{ wg.slides_title }} | fun IT club`
 - pptx から作るときは、配色・見出し・発表者ノートを元のファイルから取る。中身を足したり削ったりしない
 
@@ -89,7 +90,7 @@ DJANGO_SETTINGS_MODULE=config.settings_dev python manage.py test
 ```
 
 `DJANGO_SETTINGS_MODULE` は明示する（devcontainer の環境変数が別のプロジェクトを指していることがある）。
-活動ページのテストは 44 件。構想資料を置いたら、題・枚数・各スライドの見出しを確かめるテストを
+活動ページのテストは 45 件。構想資料を置いたら、題・枚数・各スライドの見出しを確かめるテストを
 `<WG>_activity/test_slides.py` に足す。**通らないまま報告しない。**
 
 ### 6. homepage に載せる
@@ -132,7 +133,7 @@ WG 一覧のカードは、WG が homepage の編集画面（`/edit/`）で直�
 | | |
 |---|---|
 | トップ | 紹介、構想資料の案内、チケットの件数と完了の割合、期日が 14 日以内・過ぎた未完了のチケット、最近の動き 5 件、プロジェクトごとの進み具合、関連リンク、参加のしかた（WG 一覧の「WG に参加」へ） |
-| 構想資料 | スライド 1 枚ずつのページ送り（ボタン・キー・スワイプ、`#s<番号>` で直接開ける）。JS が無ければ縦に並ぶ |
+| 構想資料 | トップの「スライドを見る」とナビの「構想資料」から別タブで開き、「閉じる」で戻る。スライド 1 枚ずつのページ送り（ボタン・キー・スワイプ、`#s<番号>` で直接開ける）。JS が無ければ縦に並ぶ |
 | チケット | `Project`（名称・識別子・説明）、`Issue`（トラッカー・題名・説明・ステータス・優先度・担当者・開始日・期日・進捗率）の一覧・詳細・作成・編集・削除。状態／プロジェクト／トラッカー／ステータス／優先度／担当者で絞り込み、主な列で並べ替え（優先度とステータスは選択肢の順）、25 件ごとのページング |
 | 見た目 | Redmine 風。CSS は `templates/<WG>_activity/base.html` に直書き、外部依存なし。スマートフォンでは表が縦に並ぶ |
 

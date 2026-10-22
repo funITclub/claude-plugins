@@ -1,5 +1,5 @@
 {
   "name": "wg-activity",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "fun IT club の WG に活動ページ（紹介・構想資料・チケット管理）を足すスキル。旧 django-tracker。"
 }

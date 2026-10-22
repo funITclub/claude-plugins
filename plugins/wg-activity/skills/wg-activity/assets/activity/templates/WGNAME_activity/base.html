@@ -169,7 +169,7 @@
 <header class="top"><a class="title" href="{% url 'WGNAME_activity:home' %}"><span class="code">{{ wg.code }}</span>{{ wg.name }}</a></header>
 <nav class="main">
     <a href="{% url 'WGNAME_activity:home' %}" {% if section == 'home' %}class="is-current"{% endif %}>活動ページ</a>
-    {% if wg.slides_title %}<a href="{% url 'WGNAME_activity:slides' %}">構想資料</a>{% endif %}
+    {% if wg.slides_title %}<a href="{% url 'WGNAME_activity:slides' %}" target="_blank" rel="noopener noreferrer" aria-label="構想資料（別タブで開きます）">構想資料</a>{% endif %}
     <a href="{% url 'WGNAME_activity:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
     <a href="{% url 'WGNAME_activity:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>
 </nav>
