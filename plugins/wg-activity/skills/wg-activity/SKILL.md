@@ -105,7 +105,9 @@ path('', RedirectView.as_view(pattern_name='<WG>_activity:home')),  # Web アプ
 `gh project list --owner funITclub` で「<WG の名前> の活動」が既に無いか見る（あれば複製せずその番号を使う）。
 
 複製すると、項目と選択肢に加えて Workflows も引き継がれる（追加したら「新規」、Issue を閉じたら
-「終了」、開き直したら「進行中」、ボードで「終了」にしたら Issue を閉じる）。複製はテンプレートではなく、
+「終了」、開き直したら「進行中」、ボードで「終了」にしたら Issue を閉じる）。表示も引き継がれる：
+「WBS」（表。親の Issue＝Parent issue ごとにまとめ、子の進み具合 Sub-issues progress を出す）と
+「ガントチャート」（Roadmap。開始日〜期日の横棒）。WBS の階層は、Issue の画面の「Create sub-issue」で作る。複製はテンプレートではなく、
 非公開の普通の Project になる。
 
 ```bash
