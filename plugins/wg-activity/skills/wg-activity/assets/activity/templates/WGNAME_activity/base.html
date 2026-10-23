@@ -152,6 +152,33 @@
         ul.plain { margin: 0; padding-left: 1.1rem; }
         ul.plain li { margin-bottom: .3rem; }
 
+        /* ---- ガントチャート ---- */
+        .gantt-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; }
+        .gantt { font-size: .8rem; }
+        .g-row { display: flex; border-bottom: 1px solid var(--line-soft); min-height: 2rem; }
+        .g-row:last-child { border-bottom: 0; }
+        .g-head { background: var(--panel); font-weight: bold; min-height: 2.6rem; }
+        .g-label {
+            flex: 0 0 16rem; padding: .4rem .5rem; border-right: 1px solid var(--line-soft);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            position: sticky; left: 0; background: var(--bg); z-index: 2;
+        }
+        .g-head .g-label { background: var(--panel); }
+        .g-track { flex: 1; position: relative; }
+        .g-month { position: absolute; top: .2rem; padding-left: .25rem; white-space: nowrap; border-left: 1px solid var(--line); }
+        .g-week { position: absolute; bottom: .15rem; padding-left: .2rem; font-size: .65rem; color: var(--muted); font-weight: normal; white-space: nowrap; }
+        .g-grid { position: absolute; top: 0; bottom: 0; border-left: 1px dotted var(--line-soft); }
+        .g-today { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--urgent); z-index: 1; }
+        .g-bar { position: absolute; top: .55rem; height: .9rem; min-width: 4px; border-radius: 2px; overflow: hidden; }
+        .g-open { background: #8EB8DC; }
+        .g-late { background: #E59A97; }
+        .g-done { background: #C8C8C8; }
+        .g-progress { position: absolute; left: 0; top: 0; bottom: 0; background: var(--progress); }
+        .g-key { display: inline-block; width: .9rem; height: .6rem; border-radius: 2px; vertical-align: middle; margin-left: .5rem; }
+        .closed-row .g-label a { text-decoration: line-through; color: var(--muted); }
+        .wbs-item { display: inline-block; }
+        .wbs-mark { color: var(--muted); margin-right: .3rem; }
+
         @media (max-width: 40rem) {
             table.list thead { display: none; }
             table.list, table.list tbody, table.list tr, table.list td { display: block; width: 100%; }
@@ -163,6 +190,7 @@
                 color: var(--muted); font-size: .7rem; display: inline-block; min-width: 5.5rem;
             }
             td.num, th.num { text-align: left; }
+            .g-label { flex-basis: 9rem; }
         }
     </style>
 </head>
@@ -173,6 +201,8 @@
     {% if wg.slides_title %}<a href="{% url 'WGNAME_activity:slides' %}" target="_blank" rel="noopener noreferrer" aria-label="構想資料（別タブで開きます）">構想資料</a>{% endif %}
     <a href="{% url 'WGNAME_activity:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
     {% if board.has_project %}<a href="{% url 'WGNAME_activity:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>{% endif %}
+    {% if board.has_project %}<a href="{% url 'WGNAME_activity:gantt' %}" {% if section == 'gantt' %}class="is-current"{% endif %}>ガントチャート</a>{% endif %}
+    {% if board %}<a href="{% url 'WGNAME_activity:wbs' %}" {% if section == 'wbs' %}class="is-current"{% endif %}>WBS</a>{% endif %}
 </nav>
 <main>
     {% if board.state == 'stale' %}

@@ -28,6 +28,7 @@ query($owner: String!, $name: String!, $cursor: String, $withProject: Boolean!) 
       nodes {
         number title url bodyHTML state stateReason createdAt updatedAt closedAt
         comments { totalCount }
+        parent { number }
         labels(first: 20) { nodes { name } }
         projectItems(first: 10) @include(if: $withProject) {
           nodes {

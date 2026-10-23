@@ -200,3 +200,84 @@ class ProjectDetailView(BoardMixin, generic.TemplateView):
                 for value, label, _ in tickets.TRACKERS
             ]
         return context
+
+
+def _monday(day):
+    return day - datetime.timedelta(days=day.weekday())
+
+
+@method_decorator(login_not_required, name='dispatch')
+class GanttView(BoardMixin, generic.TemplateView):
+    """ガントチャート。開始日〜期日のあるチケットを横棒で並べる（Project の項目を使う）。"""
+
+    template_name = 'WGNAME_activity/gantt.html'
+    section = 'gantt'
+
+    # 1 日あたりの幅の下限（px）。期間が長いときは横に送って見る
+    DAY_PX = 10
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        board = self.get_board()
+        if board.has_data and not board.has_project:
+            raise Http404('この WG は Project を使っていません')
+        today = timezone.localdate()
+        items = sorted((t for t in board.tickets if t.bar_start),
+                       key=lambda t: (t.bar_start, t.bar_end, t.number))
+        context.update({'today': today, 'rows': [], 'months': [], 'weeks': []})
+        if not items:
+            return context
+
+        # 表の幅：いちばん早い日〜いちばん遅い日（今日も入れる）を、月曜〜日曜の区切りまで広げる
+        first = _monday(min([t.bar_start for t in items] + [today]))
+        last = _monday(max([t.bar_end for t in items] + [today])) + datetime.timedelta(days=6)
+        span = (last - first).days + 1
+
+        def left(day):
+            return round((day - first).days / span * 100, 3)
+
+        rows = []
+        for t in items:
+            start, end = min(t.bar_start, t.bar_end), max(t.bar_start, t.bar_end)
+            if not t.is_open:
+                state = 'done'
+            elif t.due_date and t.due_date < today:
+                state = 'late'
+            else:
+                state = 'open'
+            rows.append({
+                'issue': t,
+                'left': left(start),
+                'width': round(((end - start).days + 1) / span * 100, 3),
+                'state': state,
+            })
+        months, day = [], first.replace(day=1)
+        while day <= last:
+            if day >= first:
+                months.append({'label': f'{day.year}年{day.month}月', 'left': left(day)})
+            day = (day + datetime.timedelta(days=32)).replace(day=1)
+        # 表の左端が月の途中なら、その月の名前も出す。次の月の区切りが近いと重なるので、そのときは出さない
+        if not months or months[0]['left'] > 15:
+            months.insert(0, {'label': f'{first.year}年{first.month}月', 'left': 0})
+        context.update({
+            'rows': rows,
+            'months': months,
+            'weeks': [{'label': f'{d.month}/{d.day}', 'left': left(d)}
+                      for d in (first + datetime.timedelta(days=7 * i) for i in range(span // 7))],
+            'today_left': round(((today - first).days + 0.5) / span * 100, 3),
+            'min_width': min(span * self.DAY_PX, 4000),
+        })
+        return context
+
+
+@method_decorator(login_not_required, name='dispatch')
+class WbsView(BoardMixin, generic.TemplateView):
+    """WBS。親子（sub-issue）の階層で並べ、親には子の完了の数を出す。"""
+
+    template_name = 'WGNAME_activity/wbs.html'
+    section = 'wbs'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['rows'] = self.get_board().wbs_rows()
+        return context

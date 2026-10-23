@@ -68,6 +68,8 @@ class Ticket:
     done_ratio: int = None
     group_id: str = ''
     group_name: str = ''
+    parent_number: int = None             # 親の Issue（sub-issue のとき）。WBS の階層に使う
+    children: list = field(default_factory=list, compare=False, repr=False)  # 親子が輪でも比べ・表示で止まらない
 
     @property
     def is_open(self):
@@ -97,6 +99,23 @@ class Ticket:
     @property
     def body_had_images(self):
         return self._clean_body[1]
+
+    @property
+    def child_total(self):
+        return len(self.children)
+
+    @property
+    def child_closed(self):
+        return sum(not c.is_open for c in self.children)
+
+    @property
+    def bar_start(self):
+        """ガントチャートの横棒の始まり。開始日が無ければ期日の 1 日だけ。"""
+        return self.start_date or self.due_date
+
+    @property
+    def bar_end(self):
+        return self.due_date or self.start_date
 
     def get_absolute_url(self):
         return reverse('WGNAME_activity:issue_detail', args=[self.number])
@@ -161,6 +180,31 @@ class Board:
 
     def group(self, group_id):
         return next((g for g in self.groups if g.id == group_id), None)
+
+    def wbs_rows(self):
+        """WBS の並び。[(チケット, 段), …]。親の下に子を番号順に並べる。
+
+        親がこのリポジトリに無い（ほかのリポジトリの Issue・読んだ範囲の外）ものは一番上の段に置く。
+        親子が輪になっていても止まるよう、一度出したものは二度出さない。
+        """
+        numbers = {t.number for t in self.tickets}
+        roots = sorted((t for t in self.tickets if t.parent_number not in numbers),
+                       key=lambda t: t.number)
+        rows, seen = [], set()
+
+        def walk(ticket, depth):
+            if ticket.number in seen:
+                return
+            seen.add(ticket.number)
+            rows.append((ticket, depth))
+            for child in sorted(ticket.children, key=lambda t: t.number):
+                walk(child, depth + 1)
+
+        for ticket in roots:
+            walk(ticket, 0)
+        for ticket in sorted(self.tickets, key=lambda t: t.number):  # 輪の中だけにあったもの
+            walk(ticket, 0)
+        return rows
 
 
 def _date(value):
@@ -254,10 +298,17 @@ def build(data, state, fetched_at=None):
             done_ratio=max(0, min(100, int(ratio))) if ratio is not None else None,
             group_id=group_id,
             group_name=group_name,
+            parent_number=(node.get('parent') or {}).get('number'),
         )
         board.tickets.append(ticket)
         if group_id in groups:
             groups[group_id].tickets.append(ticket)
+
+    by_number = {t.number: t for t in board.tickets}
+    for ticket in board.tickets:
+        parent = by_number.get(ticket.parent_number)
+        if parent is not None and parent is not ticket:
+            parent.children.append(ticket)
 
     # 選択肢に無い値（Project から消した選択肢など）も、並べ替えで落ちないよう末尾に足す
     for ticket in board.tickets:

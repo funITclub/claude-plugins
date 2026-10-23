@@ -36,7 +36,7 @@ def field_value(name, value):
 
 
 def issue(number, title, *, state='OPEN', reason=None, labels=(), fields=None,
-          updated=None, body_html='', comments=0):
+          updated=None, body_html='', comments=0, parent=None):
     """GitHub の Issue 1 件（github.ISSUES_QUERY の応答の形）。"""
     updated = updated or timezone.now() - number * datetime.timedelta(hours=1)
     node = {
@@ -47,6 +47,7 @@ def issue(number, title, *, state='OPEN', reason=None, labels=(), fields=None,
         'updatedAt': updated.isoformat(), 'closedAt': None,
         'comments': {'totalCount': comments},
         'labels': {'nodes': [{'name': name} for name in labels]},
+        'parent': {'number': parent} if parent else None,
     }
     if fields is not None:
         node['projectItems'] = {'nodes': [
@@ -419,7 +420,7 @@ class PublicAccessTests(SimpleTestCase):
             if isinstance(obj, type) and issubclass(obj, View)
             and obj.__module__ == views.__name__
         ]
-        self.assertGreaterEqual(len(found), 6)
+        self.assertGreaterEqual(len(found), 8)
         for view in found:
             self.assertIs(
                 view.dispatch.login_required, False,
@@ -605,3 +606,97 @@ class GitHubTokenTests(SimpleTestCase):
         self.assertEqual(calls[1][2], {'repositories': ['wg-x'], 'permissions': {'issues': 'read'}})
         self.assertEqual(calls[3][2]['permissions'],
                          {'issues': 'read', 'organization_projects': 'read'})
+
+
+class WbsTests(BoardTestCase):
+    """WBS。sub-issue の親子で並べる。"""
+
+    def make_issues(self):
+        return [
+            issue(1, '画面を作る'),
+            issue(2, 'ログイン画面', parent=1),
+            issue(3, '一覧画面', parent=1, state='CLOSED'),
+            issue(4, '一覧の並べ替え', parent=3),
+            issue(5, '調べもの'),
+            issue(6, 'ほかのリポジトリの子', parent=999),
+        ]
+
+    def test_rows_follow_the_tree(self):
+        rows = [(t.number, depth) for t, depth in tickets.load().wbs_rows()]
+        self.assertEqual(rows, [(1, 0), (2, 1), (3, 1), (4, 2), (5, 0), (6, 0)])
+
+    def test_parent_counts_its_children(self):
+        parent = tickets.load().ticket(1)
+        self.assertEqual((parent.child_total, parent.child_closed), (2, 1))
+
+    def test_a_loop_does_not_hang(self):
+        self.data['issues'] = [issue(1, 'a', parent=2), issue(2, 'b', parent=1)]
+        rows = [(t.number, depth) for t, depth in tickets.load().wbs_rows()]
+        self.assertEqual(rows, [(1, 0), (2, 1)])
+
+    def test_page(self):
+        response = self.client.get(reverse('WGNAME_activity:wbs'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '1 / 2')
+        self.assertContains(response, 'padding-left:calc(2 * 1.4rem)')  # #4 は 2 段目
+
+    def test_works_without_a_project(self):
+        home = self.client.get(reverse('WGNAME_activity:home'))
+        self.assertContains(home, 'href="{}"'.format(reverse('WGNAME_activity:wbs')))
+
+
+class GanttTests(ProjectBoardTestCase):
+    """ガントチャート。開始日〜期日を横棒にする。"""
+
+    def setUp(self):
+        super().setUp()
+        self.today = timezone.localdate()
+        monday = self.today - datetime.timedelta(days=self.today.weekday())
+        self.data['issues'] = [
+            issue(1, '準備', fields={'開始日': monday, '期日': monday + 6 * DAY}),
+            issue(2, '期日だけ', fields={'期日': monday + 13 * DAY, '進捗率': 50}),
+            issue(3, '遅れ', fields={'開始日': monday - 7 * DAY, '期日': monday - DAY}),
+            issue(4, '済み', state='CLOSED', fields={'開始日': monday, '期日': monday + DAY}),
+            issue(5, '日付なし', fields={}),
+        ]
+
+    def get(self):
+        return self.client.get(reverse('WGNAME_activity:gantt'))
+
+    def test_only_dated_tickets_in_date_order(self):
+        rows = self.get().context['rows']
+        self.assertEqual([r['issue'].number for r in rows], [3, 4, 1, 2])  # 開始日 → 期日 → 番号の順
+
+    def test_bars_are_placed_by_date(self):
+        rows = {r['issue'].number: r for r in self.get().context['rows']}
+        # 表は「遅れ」の始まりの週（月曜）から、「期日だけ」の週の日曜までの 3 週＝21 日
+        self.assertEqual(rows[3]['left'], 0)
+        self.assertAlmostEqual(rows[1]['left'], 7 / 21 * 100, places=2)
+        self.assertAlmostEqual(rows[1]['width'], 7 / 21 * 100, places=2)
+        self.assertAlmostEqual(rows[2]['width'], 1 / 21 * 100, places=2)  # 期日だけなら 1 日
+
+    def test_states(self):
+        rows = {r['issue'].number: r['state'] for r in self.get().context['rows']}
+        self.assertEqual(rows, {1: 'open', 2: 'open', 3: 'late', 4: 'done'})
+
+    def test_page_shows_today_and_progress(self):
+        response = self.get()
+        self.assertContains(response, 'class="g-today"')
+        self.assertContains(response, 'class="g-progress" style="width:50%"')
+        self.assertContains(response, '#2 期日だけ')
+        self.assertNotContains(response, '日付なし')
+
+    def test_empty(self):
+        self.data['issues'] = [issue(1, 'a', fields={})]
+        self.assertContains(self.get(), '開始日か期日の入ったチケットはまだありません')
+
+    def test_nav_has_gantt(self):
+        home = self.client.get(reverse('WGNAME_activity:home'))
+        self.assertContains(home, 'href="{}"'.format(reverse('WGNAME_activity:gantt')))
+
+
+class NoProjectGanttTests(BoardTestCase):
+    def test_hidden_without_a_project(self):
+        home = self.client.get(reverse('WGNAME_activity:home'))
+        self.assertNotContains(home, 'href="{}"'.format(reverse('WGNAME_activity:gantt')))
+        self.assertEqual(self.client.get(reverse('WGNAME_activity:gantt')).status_code, 404)
