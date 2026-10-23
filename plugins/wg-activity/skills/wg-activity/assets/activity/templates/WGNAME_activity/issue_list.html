@@ -4,8 +4,10 @@
 <h1>チケット</h1>
 
 <div class="toolbar">
-    <a class="btn primary" href="{% url 'WGNAME_activity:issue_create' %}">新しいチケット</a>
+    <a class="btn primary" href="{{ board.new_issue_url }}" target="_blank" rel="noopener noreferrer" aria-label="GitHub で新しいチケット（別タブで開きます）">GitHub で新しいチケット</a>
+    {% if board.project_url %}<a class="btn" href="{{ board.project_url }}" target="_blank" rel="noopener noreferrer" aria-label="GitHub のボード（別タブで開きます）">GitHub のボード</a>{% endif %}
 </div>
+<p class="note">チケットは WG のメンバーが GitHub で書きます（このページは読むだけ）。題名と本文は一般公開されます。</p>
 
 <form class="filters" method="get">
     <div class="fields">
@@ -27,33 +29,30 @@
             <th class="num"><a href="?{{ query_string }}&amp;sort={% if sort == 'id' %}-{% endif %}id">#</a></th>
             <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'tracker' %}-{% endif %}tracker">トラッカー</a></th>
             <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'status' %}-{% endif %}status">ステータス</a></th>
-            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'priority' %}-{% endif %}priority">優先度</a></th>
+            {% if board.has_project %}<th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'priority' %}-{% endif %}priority">優先度</a></th>{% endif %}
             <th><a href="?{{ query_string }}&amp;sort={% if sort == 'subject' %}-{% endif %}subject">題名</a></th>
+            {% if board.has_project %}
             <th class="nowrap">プロジェクト</th>
-            <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'assignee' %}-{% endif %}assignee">担当者</a></th>
             <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'due_date' %}-{% endif %}due_date">期日</a></th>
             <th class="nowrap">進捗</th>
+            {% endif %}
             <th class="nowrap"><a href="?{{ query_string }}&amp;sort={% if sort == 'updated_at' %}-{% endif %}updated_at">更新日</a></th>
-            <th class="nowrap">操作</th>
         </tr>
     </thead>
     <tbody>
     {% for issue in issues %}
         <tr {% if not issue.is_open %}class="closed-row"{% endif %}>
-            <td class="num" data-label="#"><a href="{{ issue.get_absolute_url }}">{{ issue.pk }}</a></td>
-            <td class="nowrap" data-label="トラッカー">{{ issue.get_tracker_display }}</td>
-            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
-            <td class="nowrap p-{{ issue.priority }}" data-label="優先度">{{ issue.get_priority_display }}</td>
-            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">{{ issue.subject }}</a></td>
-            <td class="nowrap" data-label="プロジェクト"><a href="{{ issue.project.get_absolute_url }}">{{ issue.project.name }}</a></td>
-            <td class="nowrap" data-label="担当者">{{ issue.assignee|default:"—" }}</td>
+            <td class="num" data-label="#"><a href="{{ issue.get_absolute_url }}">{{ issue.number }}</a></td>
+            <td class="nowrap" data-label="トラッカー">{{ issue.tracker_label }}</td>
+            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status_css }}">{{ issue.status }}</span></td>
+            {% if board.has_project %}<td class="nowrap p-{{ issue.priority_css }}" data-label="優先度">{{ issue.priority|default:"—" }}</td>{% endif %}
+            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">{{ issue.title }}</a></td>
+            {% if board.has_project %}
+            <td class="nowrap" data-label="プロジェクト">{% if issue.group_id %}<a href="{% url 'WGNAME_activity:project_detail' issue.group_id %}">{{ issue.group_name }}</a>{% else %}—{% endif %}</td>
             <td class="nowrap" data-label="期日">{{ issue.due_date|date:"Y-m-d"|default:"—" }}</td>
-            <td class="nowrap" data-label="進捗"><span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%</td>
+            <td class="nowrap" data-label="進捗">{% if issue.done_ratio is not None %}<span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%{% else %}—{% endif %}</td>
+            {% endif %}
             <td class="nowrap" data-label="更新日">{{ issue.updated_at|date:"Y-m-d H:i" }}</td>
-            <td class="ops" data-label="操作">
-                <a href="{% url 'WGNAME_activity:issue_update' issue.pk %}">編集</a>
-                <a href="{% url 'WGNAME_activity:issue_delete' issue.pk %}">削除</a>
-            </td>
         </tr>
     {% endfor %}
     </tbody>
@@ -69,7 +68,7 @@
 <p class="pager">全 {{ issues|length }} 件</p>
 {% endif %}
 
-{% else %}
+{% elif board.has_data %}
 <p class="empty">条件に合うチケットはありません。</p>
 {% endif %}
 {% endblock %}

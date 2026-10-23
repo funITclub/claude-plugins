@@ -1,0 +1,19 @@
+name: サポート
+description: 困っていること・聞きたいこと
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **題名と本文は、WG の活動ページ（funitclub.org）で一般公開されます。**
+        個人の名前・連絡先、パスワードや API キーなどの秘密は書かないでください。貼った画像は公開されません。
+  - type: textarea
+    id: what
+    attributes:
+      label: 困っていること
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: 試したこと

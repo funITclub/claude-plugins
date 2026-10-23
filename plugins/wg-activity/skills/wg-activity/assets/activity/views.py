@@ -1,43 +1,34 @@
 import datetime
 
 from django.contrib.auth.decorators import login_not_required
-from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.http import Http404
-from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import generic
 
-from . import content
-from .forms import IssueFilterForm, IssueForm, ProjectForm
-from .models import Issue, Project
+from . import content, tickets
+from .forms import IssueFilterForm
 
 
-# 本番（homepage の中）は既定で全画面がログイン必須。活動ページは、ログインなしで
-# 見て書けるよう全画面を公開にする（各ビューの login_not_required）。公開なので、
-# 誰でもチケットを書き換えられる。
+# 本番（homepage の中）は既定で全画面がログイン必須。活動ページは活動の様子を外にも
+# 見せるため、全画面を公開にする（各ビューの login_not_required）。書き込む画面は無い。
+# チケットは会員が GitHub で直接書き、ここはそれを読んで出すだけ（tickets.py）。
 
+# 並べ替えのキー → 並べる値。None（期日の無いものなど）は昇順でも降順でも後ろに回す
 SORTABLE = {
-    'id': 'pk',
-    'tracker': 'tracker',
-    'status': 'status_rank',
-    'priority': 'priority_rank',
-    'subject': 'subject',
-    'assignee': 'assignee',
-    'due_date': 'due_date',
-    'updated_at': 'updated_at',
+    'id': lambda board: lambda t: t.number,
+    'tracker': lambda board: lambda t: [v for v, _l, _a in tickets.TRACKERS].index(t.tracker),
+    'status': lambda board: lambda t: board.status_order.index(t.status),
+    'priority': lambda board: lambda t: (
+        board.priority_order.index(t.priority) if t.priority else None),
+    'subject': lambda board: lambda t: t.title,
+    'due_date': lambda board: lambda t: t.due_date,
+    'updated_at': lambda board: lambda t: t.updated_at,
 }
+DEFAULT_SORT = '-updated_at'
 
 # 期日がこの日数以内のチケットを、トップの「期日が近いチケット」に出す
 DUE_SOON_DAYS = 14
-
-
-def _rank(field, choices):
-    """選択肢を定義した順に並べるための番号。値の文字列順では並ばないため。"""
-    return Case(
-        *[When(**{field: value}, then=Value(i)) for i, value in enumerate(choices.values)],
-        output_field=IntegerField(),
-    )
 
 
 class PageMixin:
@@ -52,8 +43,22 @@ class PageMixin:
         return context
 
 
+class BoardMixin(PageMixin):
+    """GitHub から読んだチケット（tickets.Board）を board として渡す。"""
+
+    def get_board(self):
+        if not hasattr(self, '_board'):
+            self._board = tickets.load()
+        return self._board
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['board'] = self.get_board()
+        return context
+
+
 @method_decorator(login_not_required, name='dispatch')
-class HomeView(PageMixin, generic.TemplateView):
+class HomeView(BoardMixin, generic.TemplateView):
     """活動ページのトップ。WG の紹介・構想資料・チケットの様子をまとめて見せる。"""
 
     template_name = 'WGNAME_activity/home.html'
@@ -61,29 +66,21 @@ class HomeView(PageMixin, generic.TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        board = self.get_board()
         today = timezone.localdate()
-        issues = Issue.objects.select_related('project')
-        open_issues = issues.filter(status__in=Issue.OPEN_STATUSES)
-        total = issues.count()
-        open_count = open_issues.count()
+        open_tickets = board.open_tickets
+        total = len(board.tickets)
+        due_soon = [t for t in open_tickets if t.due_date
+                    and t.due_date <= today + datetime.timedelta(days=DUE_SOON_DAYS)]
         context.update({
             'today': today,
             'total_count': total,
-            'open_count': open_count,
-            'closed_count': total - open_count,
-            'due_soon': open_issues.filter(
-                due_date__isnull=False,
-                due_date__lte=today + datetime.timedelta(days=DUE_SOON_DAYS),
-            ).order_by('due_date', 'pk')[:10],
+            'open_count': len(open_tickets),
+            'closed_count': total - len(open_tickets),
+            'due_soon': sorted(due_soon, key=lambda t: (t.due_date, t.number))[:10],
             'due_soon_days': DUE_SOON_DAYS,
-            'recent_issues': issues.order_by('-updated_at')[:5],
-            'projects': Project.objects.annotate(
-                open_count=Count('issues', filter=Q(
-                    issues__status__in=Issue.OPEN_STATUSES)),
-                closed_count=Count('issues', filter=~Q(
-                    issues__status__in=Issue.OPEN_STATUSES)),
-                total_count=Count('issues'),
-            ),
+            'recent_issues': sorted(board.tickets, key=lambda t: t.updated_at, reverse=True)[:5],
+            'projects': board.groups,
         })
         return context
 
@@ -102,10 +99,9 @@ class SlidesView(PageMixin, generic.TemplateView):
 
 
 @method_decorator(login_not_required, name='dispatch')
-class IssueListView(PageMixin, generic.ListView):
+class IssueListView(BoardMixin, generic.ListView):
     """チケット一覧。絞り込みと並べ替えができる。"""
 
-    model = Issue
     template_name = 'WGNAME_activity/issue_list.html'
     context_object_name = 'issues'
     paginate_by = 25
@@ -114,39 +110,42 @@ class IssueListView(PageMixin, generic.ListView):
     def get_filter_form(self):
         data = self.request.GET.copy()
         data.setdefault('state', 'open')
-        return IssueFilterForm(data)
+        return IssueFilterForm(data, board=self.get_board())
 
     def get_queryset(self):
-        queryset = Issue.objects.select_related('project').annotate(
-            status_rank=_rank('status', Issue.Status),
-            priority_rank=_rank('priority', Issue.Priority),
-        )
+        board = self.get_board()
+        items = list(board.tickets)
         form = self.get_filter_form()
         if form.is_valid():
             picked = form.cleaned_data
             if picked.get('state') == 'open':
-                queryset = queryset.filter(status__in=Issue.OPEN_STATUSES)
+                items = [t for t in items if t.is_open]
             elif picked.get('state') == 'closed':
-                queryset = queryset.exclude(status__in=Issue.OPEN_STATUSES)
-            for field in ('project', 'tracker', 'status', 'priority'):
-                if picked.get(field):
-                    queryset = queryset.filter(**{field: picked[field]})
-            if picked.get('assignee'):
-                queryset = queryset.filter(assignee__icontains=picked['assignee'])
-        return queryset.order_by(self.get_ordering(), '-pk')
+                items = [t for t in items if not t.is_open]
+            for name, attr in (('project', 'group_id'), ('tracker', 'tracker'),
+                               ('status', 'status'), ('priority', 'priority')):
+                if picked.get(name):
+                    items = [t for t in items if getattr(t, attr) == picked[name]]
+        return self.sort(items, board)
 
-    def get_ordering(self):
-        key = self.request.GET.get('sort', '-updated_at')
+    def get_sort(self):
+        key = self.request.GET.get('sort', DEFAULT_SORT)
+        return key if key.lstrip('-') in SORTABLE else DEFAULT_SORT
+
+    def sort(self, items, board):
+        key = self.get_sort()
         descending = key.startswith('-')
-        field = SORTABLE.get(key.lstrip('-'))
-        if not field:
-            return '-updated_at'
-        return ('-' if descending else '') + field
+        value = SORTABLE[key.lstrip('-')](board)
+        # 同じ値のあいだは新しい番号から
+        items = sorted(items, key=lambda t: t.number, reverse=True)
+        with_value = [t for t in items if value(t) is not None]
+        without = [t for t in items if value(t) is None]
+        return sorted(with_value, key=value, reverse=descending) + without
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filter_form'] = self.get_filter_form()
-        context['sort'] = self.request.GET.get('sort', '-updated_at')
+        context['sort'] = self.get_sort()
         query = self.request.GET.copy()
         query.pop('page', None)
         query.pop('sort', None)
@@ -155,106 +154,49 @@ class IssueListView(PageMixin, generic.ListView):
 
 
 @method_decorator(login_not_required, name='dispatch')
-class IssueDetailView(PageMixin, generic.DetailView):
-    model = Issue
+class IssueDetailView(BoardMixin, generic.TemplateView):
     template_name = 'WGNAME_activity/issue_detail.html'
-    context_object_name = 'issue'
     section = 'issues'
-
-
-@method_decorator(login_not_required, name='dispatch')
-class IssueCreateView(PageMixin, generic.CreateView):
-    model = Issue
-    form_class = IssueForm
-    template_name = 'WGNAME_activity/issue_form.html'
-    section = 'issues'
-
-    def get_initial(self):
-        initial = super().get_initial()
-        identifier = self.request.GET.get('project')
-        if identifier:
-            initial['project'] = Project.objects.filter(
-                identifier=identifier).first()
-        return initial
-
-
-@method_decorator(login_not_required, name='dispatch')
-class IssueUpdateView(PageMixin, generic.UpdateView):
-    model = Issue
-    form_class = IssueForm
-    template_name = 'WGNAME_activity/issue_form.html'
-    section = 'issues'
-
-
-@method_decorator(login_not_required, name='dispatch')
-class IssueDeleteView(PageMixin, generic.DeleteView):
-    model = Issue
-    template_name = 'WGNAME_activity/issue_confirm_delete.html'
-    context_object_name = 'issue'
-    section = 'issues'
-    success_url = reverse_lazy('WGNAME_activity:issue_list')
-
-
-@method_decorator(login_not_required, name='dispatch')
-class ProjectListView(PageMixin, generic.ListView):
-    model = Project
-    template_name = 'WGNAME_activity/project_list.html'
-    context_object_name = 'projects'
-    section = 'projects'
-
-    def get_queryset(self):
-        return Project.objects.annotate(
-            open_count=Count('issues', filter=Q(
-                issues__status__in=Issue.OPEN_STATUSES)),
-            total_count=Count('issues'),
-        )
-
-
-@method_decorator(login_not_required, name='dispatch')
-class ProjectDetailView(PageMixin, generic.DetailView):
-    model = Project
-    template_name = 'WGNAME_activity/project_detail.html'
-    context_object_name = 'project'
-    section = 'projects'
-    slug_field = 'identifier'
-    slug_url_kwarg = 'identifier'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        issues = self.object.issues.all()
-        context['open_issues'] = issues.filter(status__in=Issue.OPEN_STATUSES)
-        context['recent_issues'] = issues[:10]
-        context['by_tracker'] = [
-            (label, issues.filter(tracker=value).count())
-            for value, label in Issue.Tracker.choices
-        ]
+        board = self.get_board()
+        issue = board.ticket(kwargs['number'])
+        # 読めていないとき（board.has_data が偽）は、404 にせず「読めません」を出す
+        if issue is None and board.has_data:
+            raise Http404('そのチケットはありません')
+        context['issue'] = issue
         return context
 
 
 @method_decorator(login_not_required, name='dispatch')
-class ProjectCreateView(PageMixin, generic.CreateView):
-    model = Project
-    form_class = ProjectForm
-    template_name = 'WGNAME_activity/project_form.html'
+class ProjectListView(BoardMixin, generic.TemplateView):
+    template_name = 'WGNAME_activity/project_list.html'
     section = 'projects'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['projects'] = self.get_board().groups
+        return context
 
 
 @method_decorator(login_not_required, name='dispatch')
-class ProjectDeleteView(PageMixin, generic.DeleteView):
-    model = Project
-    template_name = 'WGNAME_activity/project_confirm_delete.html'
-    context_object_name = 'project'
-    slug_field = 'identifier'
-    slug_url_kwarg = 'identifier'
-    success_url = reverse_lazy('WGNAME_activity:project_list')
+class ProjectDetailView(BoardMixin, generic.TemplateView):
+    template_name = 'WGNAME_activity/project_detail.html'
     section = 'projects'
 
-
-@method_decorator(login_not_required, name='dispatch')
-class ProjectUpdateView(PageMixin, generic.UpdateView):
-    model = Project
-    form_class = ProjectForm
-    template_name = 'WGNAME_activity/project_form.html'
-    section = 'projects'
-    slug_field = 'identifier'
-    slug_url_kwarg = 'identifier'
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        board = self.get_board()
+        project = board.group(kwargs['group_id'])
+        if project is None and board.has_data:
+            raise Http404('そのプロジェクトはありません')
+        context['project'] = project
+        if project:
+            issues = sorted(project.tickets, key=lambda t: t.updated_at, reverse=True)
+            context['recent_issues'] = issues[:10]
+            context['by_tracker'] = [
+                (label, sum(t.tracker == value for t in issues))
+                for value, label, _ in tickets.TRACKERS
+            ]
+        return context

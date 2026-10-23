@@ -96,7 +96,7 @@
         .s-in_progress { background: var(--progress); }
         .s-resolved { background: var(--resolved); }
         .s-feedback { background: var(--feedback); }
-        .s-closed, .s-rejected { background: var(--closed); }
+        .s-closed, .s-rejected, .s-other { background: var(--closed); }
         .p-urgent { color: var(--urgent); font-weight: bold; }
         .p-high { color: var(--high); font-weight: bold; }
         .p-low { color: var(--muted); }
@@ -113,23 +113,24 @@
             border: 1px solid var(--line); border-radius: 3px;
             padding: .8rem .9rem; background: var(--panel-2); margin-bottom: 1rem;
         }
+        /* チケットの本文（GitHub の Markdown を描いたもの。body.py で削ってある） */
+        .markdown { font-size: .85rem; line-height: 1.75; max-width: 52rem; overflow-wrap: anywhere; }
+        .markdown > :first-child { margin-top: 0; }
+        .markdown h1, .markdown h2, .markdown h3, .markdown h4 { font-size: .95rem; margin: 1rem 0 .4rem; border: 0; padding: 0; }
+        .markdown ul, .markdown ol { padding-left: 1.4rem; margin: 0 0 .7rem; }
+        .markdown pre { background: var(--panel); border: 1px solid var(--line-soft); padding: .6rem; overflow-x: auto; }
+        .markdown code { background: var(--panel); padding: 0 .2rem; font-size: .8rem; }
+        .markdown pre code { background: none; padding: 0; }
+        .markdown blockquote { margin: 0 0 .7rem; padding-left: .8rem; border-left: 3px solid var(--line); color: var(--muted); }
+        .markdown table { border-collapse: collapse; margin: 0 0 .7rem; }
+        .markdown th, .markdown td { border: 1px solid var(--line-soft); padding: .25rem .5rem; }
         .desc { white-space: pre-wrap; font-size: .85rem; }
 
-        form.model p { margin: 0 0 .7rem; }
-        form.model label { display: block; font-size: .78rem; color: var(--muted); }
-        form.model input[type=text], form.model input[type=number], form.model input[type=date],
-        form.model select, form.model textarea {
-            font-family: inherit; font-size: .85rem; padding: .3rem;
-            border: 1px solid var(--line); border-radius: 2px; width: 100%; max-width: 34rem;
-            background: #fff;
+        .notice {
+            border: 1px solid #E0C36A; background: #FFF8E1; border-radius: 3px;
+            padding: .5rem .8rem; margin-bottom: 1rem; font-size: .82rem;
         }
-        form.model .errorlist { color: #C33; font-size: .78rem; margin: .1rem 0; padding-left: 1rem; }
-        .helptext { color: var(--muted); font-size: .72rem; }
-        .req { color: #C33; }
-        .warn { color: #A94442; font-weight: bold; }
-        ul.doomed { margin: .3rem 0 .7rem; padding-left: 1.2rem; font-size: .8rem; color: var(--muted); }
-        td.ops { white-space: nowrap; }
-        td.ops a { margin-right: .5rem; font-size: .75rem; }
+        .note { color: var(--muted); font-size: .75rem; }
 
         .pager { margin-top: .9rem; font-size: .8rem; color: var(--muted); }
         .pager a { margin: 0 .2rem; }
@@ -171,9 +172,16 @@
     <a href="{% url 'WGNAME_activity:home' %}" {% if section == 'home' %}class="is-current"{% endif %}>活動ページ</a>
     {% if wg.slides_title %}<a href="{% url 'WGNAME_activity:slides' %}" target="_blank" rel="noopener noreferrer" aria-label="構想資料（別タブで開きます）">構想資料</a>{% endif %}
     <a href="{% url 'WGNAME_activity:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
-    <a href="{% url 'WGNAME_activity:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>
+    {% if board.has_project %}<a href="{% url 'WGNAME_activity:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>{% endif %}
 </nav>
 <main>
+    {% if board.state == 'stale' %}
+    <p class="notice">GitHub から読み直せなかったので、{% if board.fetched_at %}{{ board.fetched_at|date:"n月j日 H:i" }} 時点の{% else %}前に読んだ{% endif %}チケットを出しています。</p>
+    {% elif board.state == 'error' %}
+    <p class="notice">いま GitHub からチケットを読めません。しばらくしてから開き直してください。</p>
+    {% elif board.state == 'offline' %}
+    <p class="notice">GitHub に繋がっていないので、チケットは出ていません。</p>
+    {% endif %}
     {% block content %}{% endblock %}
 </main>
 </body>

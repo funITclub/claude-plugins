@@ -1,0 +1,24 @@
+name: 機能
+description: 作ること・足すこと・調べること
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **題名と本文は、WG の活動ページ（funitclub.org）で一般公開されます。**
+        個人の名前・連絡先、パスワードや API キーなどの秘密は書かないでください。貼った画像は公開されません。
+  - type: textarea
+    id: what
+    attributes:
+      label: やること
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: なぜやるか
+  - type: textarea
+    id: done
+    attributes:
+      label: 終わりの目安
+      description: どうなったら閉じてよいか

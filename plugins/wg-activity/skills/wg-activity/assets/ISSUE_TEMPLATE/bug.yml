@@ -1,0 +1,27 @@
+name: バグ
+description: 動かない・おかしいところを知らせる
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **題名と本文は、WG の活動ページ（funitclub.org）で一般公開されます。**
+        個人の名前・連絡先、パスワードや API キーなどの秘密は書かないでください。貼った画像は公開されません。
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きたか
+      description: どこで、何をしたら、どうなったか
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 本来はどうなるはずか
+  - type: textarea
+    id: steps
+    attributes:
+      label: 起こし方
+      placeholder: |
+        1. …
+        2. …

@@ -1,299 +1,438 @@
 import datetime
 from unittest import mock
 
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import escape
 from django.views import View
 
-from . import content
-from .models import Issue, Project
+from . import body, content, github, tickets, views
+
+# homepage の中で流すときは、一覧からの導線（homepage の config/gate.py）を外す。
+# 通行証はアプリの振る舞いとは別物のため。WG のリポジトリ単体では効かないだけ。
+_gate_off = override_settings(GATE_BACK={})
 
 
-class TrackerTestCase(TestCase):
+def setUpModule():
+    _gate_off.enable()
+
+
+def tearDownModule():
+    _gate_off.disable()
+
+PROJECT_NUMBER = 7
+DAY = datetime.timedelta(days=1)
+
+
+def field_value(name, value):
+    """Project の項目の値（GitHub の応答の形）。単一選択は (選択肢の ID, 名前) で渡す。"""
+    if isinstance(value, tuple):
+        return {'optionId': value[0], 'name': value[1], 'field': {'name': name}}
+    if isinstance(value, datetime.date):
+        return {'date': value.isoformat(), 'field': {'name': name}}
+    return {'number': value, 'field': {'name': name}}
+
+
+def issue(number, title, *, state='OPEN', reason=None, labels=(), fields=None,
+          updated=None, body_html='', comments=0):
+    """GitHub の Issue 1 件（github.ISSUES_QUERY の応答の形）。"""
+    updated = updated or timezone.now() - number * datetime.timedelta(hours=1)
+    node = {
+        'number': number, 'title': title,
+        'url': f'https://github.com/funITclub/wg-x/issues/{number}',
+        'bodyHTML': body_html, 'state': state, 'stateReason': reason,
+        'createdAt': '2026-10-01T00:00:00Z',
+        'updatedAt': updated.isoformat(), 'closedAt': None,
+        'comments': {'totalCount': comments},
+        'labels': {'nodes': [{'name': name} for name in labels]},
+    }
+    if fields is not None:
+        node['projectItems'] = {'nodes': [
+            {'project': {'number': 99}, 'fieldValues': {'nodes': [
+                field_value('ステータス', ('x', '終了'))]}},  # ほかの Project の値は読まない
+            {'project': {'number': PROJECT_NUMBER}, 'fieldValues': {'nodes': [
+                {}] + [field_value(k, v) for k, v in fields.items()]}},
+        ]}
+    return node
+
+
+def options(*names):
+    return [{'id': f'opt-{name}', 'name': name, 'description': ''} for name in names]
+
+
+PROJECT = {
+    'title': 'WG の活動', 'url': 'https://github.com/orgs/funITclub/projects/7',
+    'fields': {'nodes': [
+        {},
+        {'name': 'Status', 'options': options(*tickets.STATUSES)},
+        {'name': '優先度', 'options': options(*tickets.PRIORITIES)},
+        {'name': 'プロジェクト', 'options': [
+            {'id': 'opt-site', 'name': 'サンプルサイト', 'description': '公開する Web サイト'},
+            {'id': 'opt-tools', 'name': '社内ツール', 'description': ''},
+        ]},
+    ]},
+}
+
+
+def status(name):
+    return ('opt-' + name, name)
+
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class BoardTestCase(TestCase):
+    """GitHub には繋がず、github.fetch を差し替える。"""
+
+    project_number = None
+
     def setUp(self):
-        self.project = Project.objects.create(
-            name='サンプルサイト', identifier='sample')
-        self.other = Project.objects.create(
-            name='社内ツール', identifier='tools')
-        self.open_issue = Issue.objects.create(
-            project=self.project, subject='ログイン画面を作る',
-            tracker=Issue.Tracker.FEATURE, status=Issue.Status.IN_PROGRESS,
-            priority=Issue.Priority.HIGH, assignee='tanaka', done_ratio=40,
-        )
-        self.closed_issue = Issue.objects.create(
-            project=self.other, subject='古いリンクを直す',
-            tracker=Issue.Tracker.SUPPORT, status=Issue.Status.CLOSED,
-            assignee='yamada',
-        )
+        cache.clear()
+        self.data = {'issues': self.make_issues(), 'project': None}
+        patcher = mock.patch.object(github, 'fetch', side_effect=lambda *a: self.data)
+        self.fetch = patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(content, 'GITHUB_PROJECT', self.project_number)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def make_issues(self):
+        return [
+            issue(1, 'ログイン画面を作る', labels=['enhancement']),
+            issue(2, '古いリンクを直す', state='CLOSED', labels=['question']),
+            issue(3, '表示が崩れる', labels=['bug']),
+        ]
 
 
-class IssueListTests(TrackerTestCase):
+class ProjectBoardTestCase(BoardTestCase):
+    """Project（ステータス・優先度・期日など）を使っている WG。"""
+
+    project_number = PROJECT_NUMBER
+
+    def setUp(self):
+        super().setUp()
+        self.data['project'] = PROJECT
+
+    def make_issues(self):
+        return [
+            issue(1, 'ログイン画面を作る', labels=['enhancement'], fields={
+                'Status': status('進行中'), '優先度': status('高め'), '進捗率': 40,
+                'プロジェクト': ('opt-site', 'サンプルサイト')}),
+            issue(2, '古いリンクを直す', labels=['question'], fields={
+                'Status': status('解決'), 'プロジェクト': ('opt-tools', '社内ツール')}),
+            issue(3, '表示が崩れる', labels=['bug'], fields={}),
+        ]
+
+
+class TicketsTests(BoardTestCase):
+    """GitHub の Issue をチケットとして読む（Project なし）。"""
+
+    def test_trackers_come_from_labels(self):
+        board = tickets.load()
+        self.assertEqual({t.number: t.tracker for t in board.tickets},
+                         {1: 'feature', 2: 'support', 3: 'bug'})
+
+    def test_japanese_labels_and_no_label(self):
+        self.data['issues'] = [issue(1, 'a', labels=['バグ']), issue(2, 'b')]
+        board = tickets.load()
+        self.assertEqual([t.tracker_label for t in board.tickets], ['バグ', '機能'])
+
+    def test_status_follows_open_and_closed(self):
+        self.data['issues'] = [
+            issue(1, 'a'), issue(2, 'b', state='CLOSED', reason='COMPLETED'),
+            issue(3, 'c', state='CLOSED', reason='NOT_PLANNED')]
+        board = tickets.load()
+        self.assertEqual([t.status for t in board.tickets], ['新規', '終了', '却下'])
+        self.assertEqual([t.is_open for t in board.tickets], [True, False, False])
+        self.assertFalse(board.has_project)
+
+    def test_project_fields_are_not_asked_for(self):
+        tickets.load()
+        self.fetch.assert_called_once_with(content.GITHUB_REPO, None)
+
+    def test_cached_for_a_while(self):
+        tickets.load()
+        tickets.load()
+        self.assertEqual(self.fetch.call_count, 1)
+
+    def test_last_good_copy_is_shown_when_github_fails(self):
+        tickets.load()
+        cache.delete(tickets._cache_key())  # 5 分たった
+        self.fetch.side_effect = github.GitHubError('落ちている')
+        with self.assertLogs(tickets.logger, 'WARNING'):
+            board = tickets.load()
+        self.assertEqual(board.state, 'stale')
+        self.assertEqual(len(board.tickets), 3)
+        # 失敗のあとしばらくは、開くたびに GitHub を待たせない
+        tickets.load()
+        self.assertEqual(self.fetch.call_count, 2)
+
+    def test_error_without_a_last_copy(self):
+        self.fetch.side_effect = github.GitHubError('落ちている')
+        with self.assertLogs(tickets.logger, 'WARNING'):
+            board = tickets.load()
+        self.assertEqual(board.state, 'error')
+        self.assertEqual(board.tickets, [])
+
+    def test_offline_without_a_key(self):
+        self.fetch.side_effect = github.NotConfigured('鍵がありません')
+        self.assertEqual(tickets.load().state, 'offline')
+
+
+class ProjectTicketsTests(ProjectBoardTestCase):
+    def test_fields_come_from_the_project(self):
+        board = tickets.load()
+        first = board.ticket(1)
+        self.assertEqual((first.status, first.priority, first.done_ratio, first.group_name),
+                         ('進行中', '高め', 40, 'サンプルサイト'))
+        self.assertTrue(board.has_project)
+        self.fetch.assert_called_once_with(content.GITHUB_REPO, PROJECT_NUMBER)
+
+    def test_resolved_counts_as_done_even_if_open(self):
+        self.assertFalse(tickets.load().ticket(2).is_open)
+
+    def test_other_projects_are_ignored(self):
+        self.assertEqual(tickets.load().ticket(3).status, '新規')
+
+    def test_groups_come_from_the_options(self):
+        groups = tickets.load().groups
+        self.assertEqual([(g.name, g.total_count, g.open_count) for g in groups],
+                         [('サンプルサイト', 1, 1), ('社内ツール', 1, 0)])
+
+    def test_dates_and_ratio(self):
+        today = timezone.localdate()
+        self.data['issues'] = [issue(1, 'a', fields={
+            '開始日': today, '期日': today + DAY, '進捗率': 150})]
+        ticket = tickets.load().ticket(1)
+        self.assertEqual((ticket.start_date, ticket.due_date, ticket.done_ratio),
+                         (today, today + DAY, 100))
+
+
+class BodyTests(SimpleTestCase):
+    """本文は GitHub が描いた HTML を、公開してよい形に削ってから出す。"""
+
+    def test_scripts_and_handlers_are_removed(self):
+        html, _ = body.clean('<p onclick="x()">本文</p><script>alert(1)</script>'
+                             '<iframe src="https://example.com"></iframe><a href="javascript:x()">j</a>')
+        self.assertEqual(html, '<p>本文</p><a target="_blank" rel="noopener noreferrer nofollow">j</a>')
+
+    def test_links_open_in_a_new_tab(self):
+        html, _ = body.clean('<a href="https://example.com/">外</a>')
+        self.assertEqual(html, '<a href="https://example.com/" target="_blank" '
+                               'rel="noopener noreferrer nofollow">外</a>')
+
+    def test_images_are_dropped_with_their_signed_links(self):
+        src = 'https://private-user-images.githubusercontent.com/1/a.png?jwt=secret'
+        html, had_images = body.clean(f'<p><a href="{src}"><img src="{src}"></a></p>')
+        self.assertTrue(had_images)
+        self.assertNotIn('jwt', html)
+        self.assertNotIn('<img', html)
+
+    def test_mentions_hide_the_user_name(self):
+        html, _ = body.clean('<p><a class="user-mention notranslate" data-hovercard-type="user" '
+                             'href="https://github.com/someone">@someone</a> さんへ</p>')
+        self.assertEqual(html, '<p>@メンバー さんへ</p>')
+
+    def test_task_lists_become_marks(self):
+        html, _ = body.clean(
+            '<ul><li><input type="checkbox" class="task-list-item-checkbox" disabled checked> 済み</li>'
+            '<li><input type="checkbox" class="task-list-item-checkbox" disabled> まだ</li></ul>')
+        self.assertEqual(html, '<ul><li>☑ 済み</li><li>☐ まだ</li></ul>')
+
+    def test_tables_and_code_stay(self):
+        source = '<table><tr><td>1</td></tr></table><pre><code>x = 1</code></pre>'
+        self.assertIn('<td>1</td>', body.clean(source)[0])
+        self.assertIn('<pre><code>x = 1</code></pre>', body.clean(source)[0])
+
+
+class IssueListTests(BoardTestCase):
+    def get(self, **params):
+        return self.client.get(reverse('WGNAME_activity:issue_list'), params)
+
     def test_list_is_shown(self):
-        response = self.client.get(reverse('WGNAME_activity:issue_list'))
+        response = self.get()
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'WGNAME_activity/issue_list.html')
 
     def test_open_issues_only_by_default(self):
-        response = self.client.get(reverse('WGNAME_activity:issue_list'))
+        response = self.get()
         self.assertContains(response, 'ログイン画面を作る')
         self.assertNotContains(response, '古いリンクを直す')
 
     def test_closed_state_shows_closed_issues(self):
-        response = self.client.get(reverse('WGNAME_activity:issue_list'), {'state': 'closed'})
+        response = self.get(state='closed')
         self.assertContains(response, '古いリンクを直す')
         self.assertNotContains(response, 'ログイン画面を作る')
 
     def test_all_state_shows_everything(self):
-        response = self.client.get(reverse('WGNAME_activity:issue_list'), {'state': 'all'})
+        response = self.get(state='all')
         self.assertContains(response, 'ログイン画面を作る')
         self.assertContains(response, '古いリンクを直す')
 
-    def test_filter_by_project(self):
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'),
-            {'state': 'all', 'project': self.other.pk},
-        )
-        self.assertContains(response, '古いリンクを直す')
-        self.assertNotContains(response, 'ログイン画面を作る')
-
-    def test_filter_by_assignee_is_partial(self):
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'), {'state': 'all', 'assignee': 'tana'})
-        self.assertContains(response, 'ログイン画面を作る')
-        self.assertNotContains(response, '古いリンクを直す')
+    def test_filter_by_tracker(self):
+        response = self.get(state='all', tracker='bug')
+        self.assertEqual([t.number for t in response.context['issues']], [3])
 
     def test_sorting_by_subject(self):
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'), {'state': 'all', 'sort': 'subject'})
-        subjects = [issue.subject for issue in response.context['issues']]
-        self.assertEqual(subjects, sorted(subjects))
+        response = self.get(state='all', sort='subject')
+        titles = [t.title for t in response.context['issues']]
+        self.assertEqual(titles, sorted(titles))
 
-    def test_sorting_by_priority_follows_the_choices(self):
-        """優先度は文字列の順ではなく、低め→通常→高め→急いでの順に並ぶ。"""
-        for priority in (Issue.Priority.URGENT, Issue.Priority.LOW):
-            Issue.objects.create(project=self.project, subject=priority.label,
-                                 priority=priority, assignee='sato')
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'), {'state': 'all', 'sort': 'priority'})
-        order = [issue.priority for issue in response.context['issues']]
-        self.assertEqual(order, sorted(order, key=list(Issue.Priority.values).index))
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'), {'state': 'all', 'sort': '-priority'})
-        self.assertEqual(response.context['issues'][0].priority, Issue.Priority.URGENT)
-
-    def test_sorting_by_status_follows_the_choices(self):
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'), {'state': 'all', 'sort': 'status'})
-        order = [issue.status for issue in response.context['issues']]
-        self.assertEqual(order, sorted(order, key=list(Issue.Status.values).index))
+    def test_newest_first_by_default(self):
+        numbers = [t.number for t in self.get(state='all').context['issues']]
+        self.assertEqual(numbers, [1, 2, 3])  # 番号が小さいほど最近更新した（make_issues）
 
     def test_unknown_sort_key_falls_back(self):
-        response = self.client.get(
-            reverse('WGNAME_activity:issue_list'), {'sort': 'drop table'})
+        response = self.get(sort='nope')
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['sort'], '-updated_at')
+
+    def test_links_to_github_for_new_tickets(self):
+        self.assertContains(
+            self.get(),
+            f'href="https://github.com/funITclub/{content.GITHUB_REPO}/issues/new/choose" '
+            'target="_blank" rel="noopener noreferrer"')
+
+    def test_no_project_columns_without_a_project(self):
+        response = self.get()
+        self.assertNotContains(response, '優先度')
+        self.assertNotContains(response, '>プロジェクト<')
+        self.assertNotIn('priority', response.context['filter_form'].fields)
+
+    def test_paginated(self):
+        self.data['issues'] = [issue(n, f'チケット{n}') for n in range(1, 31)]
+        response = self.get()
+        self.assertEqual(len(response.context['issues']), 25)
+        self.assertContains(response, '1 / 2 ページ（全 30 件）')
+
+    def test_shows_a_notice_when_github_fails(self):
+        self.fetch.side_effect = github.GitHubError('落ちている')
+        with self.assertLogs(tickets.logger, 'WARNING'):
+            response = self.get()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'いま GitHub からチケットを読めません')
+        self.assertNotContains(response, '条件に合うチケットはありません')
 
 
-class IssueDetailTests(TrackerTestCase):
+class ProjectIssueListTests(ProjectBoardTestCase):
+    def get(self, **params):
+        return self.client.get(reverse('WGNAME_activity:issue_list'), params)
+
+    def test_filter_by_project(self):
+        response = self.get(state='all', project='opt-tools')
+        self.assertEqual([t.number for t in response.context['issues']], [2])
+
+    def test_filter_by_priority(self):
+        response = self.get(priority='高め')
+        self.assertEqual([t.number for t in response.context['issues']], [1])
+
+    def test_sorting_by_priority_follows_the_options(self):
+        """優先度は文字列の順ではなく、Project の選択肢の順（低め→通常→高め→急いで）に並ぶ。"""
+        self.data['issues'] += [
+            issue(4, 'd', fields={'優先度': status('急いで')}),
+            issue(5, 'e', fields={'優先度': status('低め')})]
+        response = self.get(state='all', sort='priority')
+        self.assertEqual([t.priority for t in response.context['issues']],
+                         ['低め', '高め', '急いで', '', ''])
+
+    def test_sorting_by_status_follows_the_options(self):
+        response = self.get(state='all', sort='status')
+        self.assertEqual([t.status for t in response.context['issues']], ['新規', '進行中', '解決'])
+
+    def test_project_columns_and_board_link(self):
+        response = self.get()
+        self.assertContains(response, '優先度')
+        self.assertContains(response, 'href="{}"'.format(PROJECT['url']))
+
+
+class IssueDetailTests(BoardTestCase):
+    def get(self, number):
+        return self.client.get(reverse('WGNAME_activity:issue_detail', args=[number]))
+
     def test_detail_is_shown(self):
-        response = self.client.get(self.open_issue.get_absolute_url())
-        self.assertEqual(response.status_code, 200)
+        self.data['issues'][0]['bodyHTML'] = '<p>本文の<strong>説明</strong></p>'
+        response = self.get(1)
         self.assertContains(response, 'ログイン画面を作る')
-        self.assertContains(response, '進行中')
-        self.assertContains(response, 'tanaka')
+        self.assertContains(response, '<p>本文の<strong>説明</strong></p>', html=True)
 
+    def test_links_to_github(self):
+        self.assertContains(
+            self.get(1), 'href="https://github.com/funITclub/wg-x/issues/1" '
+                         'target="_blank" rel="noopener noreferrer"')
 
-class IssueEditingTests(TrackerTestCase):
-    def test_create_issue(self):
-        response = self.client.post(reverse('WGNAME_activity:issue_create'), {
-            'project': self.project.pk,
-            'tracker': Issue.Tracker.BUG,
-            'subject': '一覧の並び順がおかしい',
-            'description': '日付の新しい順にならない。',
-            'status': Issue.Status.NEW,
-            'priority': Issue.Priority.URGENT,
-            'assignee': 'yamada',
-            'done_ratio': 0,
-        })
-        self.assertEqual(response.status_code, 302)
-        issue = Issue.objects.get(subject='一覧の並び順がおかしい')
-        self.assertEqual(issue.project, self.project)
+    def test_body_is_cleaned(self):
+        self.data['issues'][0]['bodyHTML'] = '<p>本文</p><script>alert(1)</script>'
+        self.assertNotContains(self.get(1), 'alert(1)')
 
-    def test_update_issue(self):
-        response = self.client.post(
-            reverse('WGNAME_activity:issue_update', args=[self.open_issue.pk]), {
-                'project': self.project.pk,
-                'tracker': self.open_issue.tracker,
-                'subject': self.open_issue.subject,
-                'description': '',
-                'status': Issue.Status.RESOLVED,
-                'priority': self.open_issue.priority,
-                'assignee': 'tanaka',
-                'done_ratio': 100,
-            })
-        self.assertEqual(response.status_code, 302)
-        self.open_issue.refresh_from_db()
-        self.assertEqual(self.open_issue.status, Issue.Status.RESOLVED)
-        self.assertFalse(self.open_issue.is_open)
+    def test_images_point_to_github(self):
+        self.data['issues'][0]['bodyHTML'] = '<p><img src="https://example.com/a.png"></p>'
+        self.assertContains(self.get(1), '画像は GitHub で見られます')
 
-    def test_due_date_before_start_date_is_rejected(self):
-        response = self.client.post(reverse('WGNAME_activity:issue_create'), {
-            'project': self.project.pk,
-            'tracker': Issue.Tracker.FEATURE,
-            'subject': '順番のおかしい日付',
-            'description': '',
-            'status': Issue.Status.NEW,
-            'priority': Issue.Priority.NORMAL,
-            'assignee': 'yamada',
-            'start_date': '2026-10-20',
-            'due_date': '2026-10-10',
-            'done_ratio': 0,
-        })
+    def test_unknown_number_is_404(self):
+        self.assertEqual(self.get(999).status_code, 404)
+
+    def test_says_it_cannot_read_instead_of_404(self):
+        self.fetch.side_effect = github.GitHubError('落ちている')
+        with self.assertLogs(tickets.logger, 'WARNING'):
+            response = self.get(1)
         self.assertEqual(response.status_code, 200)
-        self.assertFormError(
-            response.context['form'], 'due_date', '期日は開始日より後にしてください。')
-
-    def test_assignee_is_required(self):
-        response = self.client.post(reverse('WGNAME_activity:issue_create'), {
-            'project': self.project.pk,
-            'tracker': Issue.Tracker.FEATURE,
-            'subject': '担当者のないチケット',
-            'description': '',
-            'status': Issue.Status.NEW,
-            'priority': Issue.Priority.NORMAL,
-            'assignee': '',
-            'done_ratio': 0,
-        })
-        self.assertEqual(response.status_code, 200)
-        # 文言は LANGUAGE_CODE で変わるので、エラーが付いたことだけを見る
-        self.assertIn('assignee', response.context['form'].errors)
-        self.assertFalse(Issue.objects.filter(subject='担当者のないチケット').exists())
-
-    def test_assignee_is_free_text(self):
-        """選択式ではなく、好きな文字列を入れられる。"""
-        response = self.client.post(reverse('WGNAME_activity:issue_create'), {
-            'project': self.project.pk,
-            'tracker': Issue.Tracker.FEATURE,
-            'subject': '自由入力の担当者',
-            'description': '',
-            'status': Issue.Status.NEW,
-            'priority': Issue.Priority.NORMAL,
-            'assignee': '生成チーム（当番制）',
-            'done_ratio': 0,
-        })
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(
-            Issue.objects.get(subject='自由入力の担当者').assignee, '生成チーム（当番制）')
-
-    def test_filtering_by_assignee_stays_optional(self):
-        """一覧の絞り込みでは担当者は任意。"""
-        response = self.client.get(reverse('WGNAME_activity:issue_list'), {'state': 'all'})
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.context['filter_form'].fields['assignee'].required)
-
-    def test_delete_issue(self):
-        response = self.client.post(
-            reverse('WGNAME_activity:issue_delete', args=[self.closed_issue.pk]))
-        self.assertRedirects(response, reverse('WGNAME_activity:issue_list'))
-        self.assertFalse(Issue.objects.filter(pk=self.closed_issue.pk).exists())
+        self.assertContains(response, 'いま GitHub からチケットを読めません')
 
 
-class ProjectViewTests(TrackerTestCase):
+class ProjectViewTests(ProjectBoardTestCase):
     def test_project_list_counts_issues(self):
         response = self.client.get(reverse('WGNAME_activity:project_list'))
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'サンプルサイト')
-        projects = {p.identifier: p for p in response.context['projects']}
-        self.assertEqual(projects['sample'].open_count, 1)
-        self.assertEqual(projects['tools'].open_count, 0)
-        self.assertEqual(projects['tools'].total_count, 1)
+        self.assertContains(response, '公開する Web サイト')
 
     def test_project_detail_lists_its_issues(self):
-        response = self.client.get(self.project.get_absolute_url())
-        self.assertEqual(response.status_code, 200)
+        response = self.client.get(reverse('WGNAME_activity:project_detail', args=['opt-site']))
         self.assertContains(response, 'ログイン画面を作る')
         self.assertNotContains(response, '古いリンクを直す')
+        self.assertIn(('機能', 1), response.context['by_tracker'])
 
-    def test_create_project(self):
-        response = self.client.post(reverse('WGNAME_activity:project_create'), {
-            'name': '手順書', 'identifier': 'docs', 'description': '',
-        })
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(Project.objects.filter(identifier='docs').exists())
+    def test_unknown_project_is_404(self):
+        response = self.client.get(reverse('WGNAME_activity:project_detail', args=['nope']))
+        self.assertEqual(response.status_code, 404)
 
-
-class ProjectDeleteTests(TrackerTestCase):
-    def test_confirm_page_warns_about_the_issues(self):
-        response = self.client.get(
-            reverse('WGNAME_activity:project_delete', args=[self.project.identifier]))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'まとめて削除されます')
-        self.assertContains(response, self.open_issue.subject)
-
-    def test_delete_project_takes_its_issues_with_it(self):
-        response = self.client.post(
-            reverse('WGNAME_activity:project_delete', args=[self.project.identifier]))
-        self.assertRedirects(response, reverse('WGNAME_activity:project_list'))
-        self.assertFalse(
-            Project.objects.filter(identifier=self.project.identifier).exists())
-        self.assertFalse(Issue.objects.filter(pk=self.open_issue.pk).exists())
-        # 別プロジェクトのチケットは残る
-        self.assertTrue(Issue.objects.filter(pk=self.closed_issue.pk).exists())
-
-    def test_empty_project_says_so(self):
-        empty = Project.objects.create(name='空っぽ', identifier='empty')
-        response = self.client.get(
-            reverse('WGNAME_activity:project_delete', args=[empty.identifier]))
-        self.assertContains(response, 'チケットはありません')
+    def test_nav_has_projects(self):
+        home = self.client.get(reverse('WGNAME_activity:home'))
+        self.assertContains(home, 'href="{}"'.format(reverse('WGNAME_activity:project_list')))
 
 
-class ListOperationLinkTests(TrackerTestCase):
-    """一覧からそのまま編集・削除へ行ける。"""
+class NoProjectViewTests(BoardTestCase):
+    def test_nav_hides_projects(self):
+        home = self.client.get(reverse('WGNAME_activity:home'))
+        self.assertNotContains(home, 'href="{}"'.format(reverse('WGNAME_activity:project_list')))
 
-    def test_issue_list_has_edit_and_delete_links(self):
-        html = self.client.get(reverse('WGNAME_activity:issue_list')).content.decode()
-        self.assertIn(reverse('WGNAME_activity:issue_update', args=[self.open_issue.pk]), html)
-        self.assertIn(reverse('WGNAME_activity:issue_delete', args=[self.open_issue.pk]), html)
-
-    def test_project_list_has_edit_and_delete_links(self):
-        html = self.client.get(reverse('WGNAME_activity:project_list')).content.decode()
-        self.assertIn(
-            reverse('WGNAME_activity:project_update', args=[self.project.identifier]), html)
-        self.assertIn(
-            reverse('WGNAME_activity:project_delete', args=[self.project.identifier]), html)
-
-    def test_project_detail_has_edit_and_delete_links(self):
-        html = self.client.get(self.project.get_absolute_url()).content.decode()
-        self.assertIn(
-            reverse('WGNAME_activity:project_update', args=[self.project.identifier]), html)
-        self.assertIn(
-            reverse('WGNAME_activity:project_delete', args=[self.project.identifier]), html)
-
-    def test_issue_detail_has_edit_and_delete_links(self):
-        html = self.client.get(self.open_issue.get_absolute_url()).content.decode()
-        self.assertIn(reverse('WGNAME_activity:issue_update', args=[self.open_issue.pk]), html)
-        self.assertIn(reverse('WGNAME_activity:issue_delete', args=[self.open_issue.pk]), html)
+    def test_project_list_says_unused(self):
+        response = self.client.get(reverse('WGNAME_activity:project_list'))
+        self.assertContains(response, 'この WG はプロジェクトを使っていません')
 
 
-class PublicAccessTests(TestCase):
+class PublicAccessTests(SimpleTestCase):
     """本番は既定で全画面ログイン必須なので、すべてのビューを明示的に外してある。"""
 
     def test_every_view_is_public(self):
-        from WGNAME_activity import views
         found = [
             obj for obj in vars(views).values()
             if isinstance(obj, type) and issubclass(obj, View)
             and obj.__module__ == views.__name__
         ]
-        self.assertGreaterEqual(len(found), 12)
+        self.assertGreaterEqual(len(found), 6)
         for view in found:
             self.assertIs(
                 view.dispatch.login_required, False,
                 '{} に login_not_required が付いていない'.format(view.__name__))
 
+    def test_nothing_writes(self):
+        """活動ページは読むだけ。チケットは GitHub で書く。"""
+        for obj in vars(views).values():
+            if isinstance(obj, type) and issubclass(obj, View):
+                self.assertNotIn('post', vars(obj), obj.__name__)
 
-class HomeTests(TrackerTestCase):
+
+class HomeTests(ProjectBoardTestCase):
     """活動ページのトップ。"""
 
     def get(self):
@@ -318,50 +457,50 @@ class HomeTests(TrackerTestCase):
 
     def test_counts_the_tickets(self):
         response = self.get()
-        self.assertEqual(response.context['open_count'], 1)
+        self.assertEqual(response.context['open_count'], 2)
         self.assertEqual(response.context['closed_count'], 1)
-        self.assertEqual(response.context['total_count'], 2)
+        self.assertEqual(response.context['total_count'], 3)
 
-    def test_links_to_the_tracker(self):
+    def test_links_to_the_tracker_and_github(self):
         response = self.get()
         self.assertContains(response, reverse('WGNAME_activity:issue_list'))
-        self.assertContains(response, reverse('WGNAME_activity:issue_create'))
+        self.assertContains(response, '/issues/new/choose')
 
     def test_due_soon_lists_open_issues_by_due_date(self):
         today = timezone.localdate()
-        overdue = Issue.objects.create(
-            project=self.project, subject='期日を過ぎたもの', assignee='sato',
-            due_date=today - datetime.timedelta(days=1))
-        soon = Issue.objects.create(
-            project=self.project, subject='来週が期日', assignee='sato',
-            due_date=today + datetime.timedelta(days=7))
-        Issue.objects.create(
-            project=self.project, subject='まだ先', assignee='sato',
-            due_date=today + datetime.timedelta(days=60))
-        Issue.objects.create(
-            project=self.project, subject='終わったもの', assignee='sato',
-            status=Issue.Status.CLOSED, due_date=today)
+        self.data['issues'] = [
+            issue(1, '期日を過ぎたもの', fields={'期日': today - DAY}),
+            issue(2, '来週が期日', fields={'期日': today + 7 * DAY}),
+            issue(3, 'まだ先', fields={'期日': today + 60 * DAY}),
+            issue(4, '終わったもの', state='CLOSED', fields={'期日': today}),
+        ]
         response = self.get()
-        self.assertEqual(list(response.context['due_soon']), [overdue, soon])
+        self.assertEqual([t.number for t in response.context['due_soon']], [1, 2])
         self.assertContains(response, '（過ぎています）', count=1)
 
     def test_recent_issues_are_newest_first(self):
-        response = self.get()
-        recent = list(response.context['recent_issues'])
-        self.assertEqual(recent, sorted(recent, key=lambda i: i.updated_at, reverse=True))
+        recent = self.get().context['recent_issues']
+        self.assertEqual(recent, sorted(recent, key=lambda t: t.updated_at, reverse=True))
 
     def test_project_progress(self):
         response = self.get()
-        projects = {p.identifier: p for p in response.context['projects']}
-        self.assertEqual(projects['sample'].open_count, 1)
-        self.assertEqual(projects['tools'].closed_count, 1)
+        projects = {p.name: p for p in response.context['projects']}
+        self.assertEqual(projects['サンプルサイト'].open_count, 1)
+        self.assertEqual(projects['社内ツール'].closed_count, 1)
         self.assertContains(response, '100%')
 
     def test_empty_tracker_still_shows(self):
-        Issue.objects.all().delete()
+        self.data['issues'] = []
         response = self.get()
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'チケットがまだありません')
+
+    def test_shows_even_when_github_fails(self):
+        self.fetch.side_effect = github.GitHubError('落ちている')
+        with self.assertLogs(tickets.logger, 'WARNING'):
+            response = self.get()
+        self.assertContains(response, escape(content.LEAD))
+        self.assertContains(response, 'いま GitHub からチケットを読めません')
 
     def test_join_link(self):
         self.assertContains(self.get(), 'href="{}"'.format(content.JOIN_URL))
@@ -378,8 +517,21 @@ class HomeTests(TrackerTestCase):
         self.assertContains(response, reverse('WGNAME_activity:home'))
 
 
-class SlidesTests(TestCase):
+class NoProjectHomeTests(BoardTestCase):
+    def test_hides_due_dates_and_progress(self):
+        response = self.client.get(reverse('WGNAME_activity:home'))
+        self.assertNotContains(response, '期日が近いチケット')
+        self.assertNotContains(response, 'プロジェクトの進み具合')
+        self.assertEqual(response.context['open_count'], 2)
+
+
+class SlidesTests(SimpleTestCase):
     """構想資料。content.SLIDES_TITLE が空のうちは出さない。"""
+
+    def setUp(self):
+        patcher = mock.patch.object(tickets, 'load', return_value=tickets.Board(state='ok'))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_hidden_until_titled(self):
         with mock.patch.object(content, 'SLIDES_TITLE', None):
@@ -415,3 +567,41 @@ class SlidesTests(TestCase):
             response, 'id="close-tab" href="{}"'.format(reverse('WGNAME_activity:home')))
         self.assertContains(response, '× 閉じる')
         self.assertNotContains(response, '‹ 活動ページ')
+
+
+class GitHubTokenTests(SimpleTestCase):
+    """鍵の選び方。本番は App、手元は GITHUB_TOKEN、どちらも無ければ NotConfigured。"""
+
+    @override_settings(GITHUB_APP_ID='', GITHUB_APP_PRIVATE_KEY='')
+    def test_without_any_key(self):
+        with mock.patch.dict('os.environ', {}, clear=True):
+            with self.assertRaises(github.NotConfigured):
+                github.fetch('wg-x')
+
+    @override_settings(GITHUB_APP_ID='', GITHUB_APP_PRIVATE_KEY='')
+    def test_personal_token_for_development(self):
+        page = {'repository': {'issues': {
+            'nodes': [issue(1, 'a')], 'pageInfo': {'hasNextPage': False, 'endCursor': None}}}}
+        with mock.patch.dict('os.environ', {'GITHUB_TOKEN': 'dev'}), \
+                mock.patch.object(github, '_graphql', return_value=page) as graphql:
+            data = github.fetch('wg-x')
+        self.assertEqual(graphql.call_args.args[0], 'dev')
+        self.assertFalse(graphql.call_args.args[2]['withProject'])
+        self.assertEqual(len(data['issues']), 1)
+
+    @override_settings(GITHUB_APP_ID='1', GITHUB_APP_PRIVATE_KEY='key')
+    def test_app_token_is_narrowed_to_the_repository(self):
+        calls = []
+
+        def call(method, url, header, body=None):
+            calls.append((method, url, body))
+            return (200, {'id': 5}) if method == 'GET' else (201, {'token': 't'})
+
+        fake_jwt = mock.Mock(encode=mock.Mock(return_value='jwt'))
+        with mock.patch.object(github, '_call', side_effect=call), \
+                mock.patch.dict('sys.modules', {'jwt': fake_jwt}):
+            self.assertEqual(github._token('wg-x', with_project=False), 't')
+            github._token('wg-x', with_project=True)
+        self.assertEqual(calls[1][2], {'repositories': ['wg-x'], 'permissions': {'issues': 'read'}})
+        self.assertEqual(calls[3][2]['permissions'],
+                         {'issues': 'read', 'organization_projects': 'read'})

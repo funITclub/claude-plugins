@@ -30,11 +30,13 @@
         {% endif %}
         <div class="toolbar">
             <a class="btn primary" href="{% url 'WGNAME_activity:issue_list' %}">チケット一覧</a>
-            <a class="btn" href="{% url 'WGNAME_activity:issue_create' %}">新しいチケット</a>
+            <a class="btn" href="{{ board.new_issue_url }}" target="_blank" rel="noopener noreferrer" aria-label="GitHub で新しいチケット（別タブで開きます）">GitHub で新しいチケット</a>
         </div>
+        <p class="note">チケットは WG のメンバーが GitHub で書いています。</p>
     </section>
 </div>
 
+{% if board.has_project %}
 <h2>期日が近いチケット</h2>
 {% if due_soon %}
 <table class="list">
@@ -45,10 +47,10 @@
     {% for issue in due_soon %}
         <tr>
             <td class="nowrap{% if issue.due_date < today %} overdue{% endif %}" data-label="期日">{{ issue.due_date|date:"Y-m-d" }}{% if issue.due_date < today %}（過ぎています）{% endif %}</td>
-            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">#{{ issue.pk }} {{ issue.subject }}</a></td>
-            <td class="nowrap" data-label="プロジェクト">{{ issue.project.name }}</td>
-            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
-            <td class="nowrap" data-label="進捗"><span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%</td>
+            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">#{{ issue.number }} {{ issue.title }}</a></td>
+            <td class="nowrap" data-label="プロジェクト">{{ issue.group_name|default:"—" }}</td>
+            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status_css }}">{{ issue.status }}</span></td>
+            <td class="nowrap" data-label="進捗">{% if issue.done_ratio is not None %}<span class="bar"><span style="width:{{ issue.done_ratio }}%"></span></span> {{ issue.done_ratio }}%{% else %}—{% endif %}</td>
         </tr>
     {% endfor %}
     </tbody>
@@ -56,26 +58,27 @@
 {% else %}
 <p class="empty">{{ due_soon_days }} 日以内に期日が来る未完了のチケットはありません。</p>
 {% endif %}
+{% endif %}
 
 <h2>最近の動き</h2>
 {% if recent_issues %}
 <table class="list">
     <thead>
-        <tr><th class="nowrap">更新日</th><th>題名</th><th class="nowrap">プロジェクト</th><th class="nowrap">ステータス</th></tr>
+        <tr><th class="nowrap">更新日</th><th>題名</th>{% if board.has_project %}<th class="nowrap">プロジェクト</th>{% endif %}<th class="nowrap">ステータス</th></tr>
     </thead>
     <tbody>
     {% for issue in recent_issues %}
         <tr {% if not issue.is_open %}class="closed-row"{% endif %}>
             <td class="nowrap" data-label="更新日">{{ issue.updated_at|date:"Y-m-d H:i" }}</td>
-            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">#{{ issue.pk }} {{ issue.subject }}</a></td>
-            <td class="nowrap" data-label="プロジェクト">{{ issue.project.name }}</td>
-            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
+            <td class="subject" data-label="題名"><a href="{{ issue.get_absolute_url }}">#{{ issue.number }} {{ issue.title }}</a></td>
+            {% if board.has_project %}<td class="nowrap" data-label="プロジェクト">{{ issue.group_name|default:"—" }}</td>{% endif %}
+            <td class="nowrap" data-label="ステータス"><span class="badge s-{{ issue.status_css }}">{{ issue.status }}</span></td>
         </tr>
     {% endfor %}
     </tbody>
 </table>
 {% else %}
-<p class="empty">チケットがまだありません。やることを 1 件書くところから始めましょう。</p>
+{% if board.has_data %}<p class="empty">チケットがまだありません。やることを 1 件、GitHub に書くところから始めましょう。</p>{% endif %}
 {% endif %}
 
 {% if projects %}

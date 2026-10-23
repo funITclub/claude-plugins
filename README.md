@@ -27,7 +27,7 @@ Add marketplace に `funITclub/claude-plugins` を入れて、Add plugin。
 
 | プラグイン | 中身 |
 |---|---|
-| `wg-activity` | WG のリポジトリに活動ページ（`<WG>_activity` アプリ）を足すスキル。トップに WG の紹介・構想資料への案内・チケットの様子を並べ、構想資料（スライド）と Redmine 風のチケット管理を持つ |
+| `wg-activity` | WG のリポジトリに活動ページ（`<WG>_activity` アプリ）を足すスキル。トップに WG の紹介・構想資料への案内・チケットの様子を並べ、構想資料（スライド）と、GitHub の Issue／Projects を読んで見せる Redmine 風のチケット一覧を持つ（チケットは GitHub で書く） |
 
 `django-tracker` は `wg-activity` に置き換えた。入れていた人は外してから入れ直す：
 

@@ -27,6 +27,15 @@ LINKS = [
     # ('Webアプリ', 'https://funitclub.org/WGNAME/'),
 ]
 
+# チケットを読む GitHub のリポジトリ（funITclub/ の下）。チケットは会員がここに直接書く。
+# 題名と本文は活動ページで一般公開される（issue テンプレートにも書いてある）
+GITHUB_REPO = 'wg-WGNAME'
+
+# ステータス・優先度・期日などを持つ org の Project の番号（https://github.com/orgs/funITclub/projects/<番号>）。
+# org のテンプレートから複製して入れる（wg-activity スキルの手順）。None のあいだは Issue の
+# Open/Closed とラベルだけで動き、優先度・期日・プロジェクトは出ない
+GITHUB_PROJECT = None
+
 # 「参加するには」のリンク先。WG 一覧の「WG に参加」から入ってもらう
 JOIN_URL = 'https://funitclub.org/wg/'
 
