@@ -99,11 +99,17 @@ path('', RedirectView.as_view(pattern_name='<WG>_activity:home')),  # Web アプ
 
 `GITHUB_PROJECT = None` のままでも動く。そのときは Issue の Open/Closed とラベルだけで、
 優先度・期日・プロジェクトの列と、トップの「期日が近い」「プロジェクトの進み具合」は出ない。
-使うなら、org の Project のテンプレート「活動ページのテンプレート」（運営が一度だけ作ったもの）を
-複製する。**WG のリーダーと相談してから**流す（org に Project が 1 つ増える）。
+使うなら、org の Project のテンプレート「活動ページのテンプレート」
+（https://github.com/orgs/funITclub/projects/1 。2026-10-23 に運営が作ったもの）を複製する。
+**WG のリーダーと相談してから**流す（org に Project が 1 つ増える）。先に
+`gh project list --owner funITclub` で「<WG の名前> の活動」が既に無いか見る（あれば複製せずその番号を使う）。
+
+複製すると、項目と選択肢に加えて Workflows も引き継がれる（追加したら「新規」、Issue を閉じたら
+「終了」、開き直したら「進行中」、ボードで「終了」にしたら Issue を閉じる）。複製はテンプレートではなく、
+非公開の普通の Project になる。
 
 ```bash
-gh auth refresh -s project   # Project を作る権限（初回だけ。ブラウザで許可する）
+gh auth refresh -h github.com -s project   # Project を作る権限（初回だけ。ブラウザで許可する）
 T=$(gh project list --owner funITclub --limit 100 --format json \
       --jq '.projects[] | select(.title=="活動ページのテンプレート") | .number')
 N=$(gh project copy "$T" --source-owner funITclub --target-owner funITclub \
@@ -118,7 +124,8 @@ gh api graphql -f p="$P" -f t="$TEAM" -f query='mutation($p: ID!, $t: ID!) {
     clientMutationId } }'
 ```
 
-- テンプレートが見つからない（`T` が空）・作れないと言われたときは、止めて利用者に伝える（運営の作業）
+- テンプレートが見つからない（`T` が空）・作れないと言われたときは、止めて利用者に伝える（運営の作業。
+  テンプレートの作り方は homepage の deploy.txt の「WG の活動ページのチケット」）
 - `content.py` の `GITHUB_PROJECT` に `$N` を書く
 - 3 つの issue フォーム（`bug.yml`・`feature.yml`・`support.yml`）の `labels:` の下に
   `projects: ["funITclub/<N>"]` を足す（新しいチケットが自動でボードに入る）
