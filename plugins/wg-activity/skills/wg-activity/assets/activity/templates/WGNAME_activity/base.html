@@ -201,8 +201,8 @@
     {% if wg.slides_title %}<a href="{% url 'WGNAME_activity:slides' %}" target="_blank" rel="noopener noreferrer" aria-label="構想資料（別タブで開きます）">構想資料</a>{% endif %}
     <a href="{% url 'WGNAME_activity:issue_list' %}" {% if section == 'issues' %}class="is-current"{% endif %}>チケット</a>
     {% if board.has_project %}<a href="{% url 'WGNAME_activity:project_list' %}" {% if section == 'projects' %}class="is-current"{% endif %}>プロジェクト</a>{% endif %}
-    {% if board.has_project %}<a href="{% url 'WGNAME_activity:gantt' %}" {% if section == 'gantt' %}class="is-current"{% endif %}>ガントチャート</a>{% endif %}
     {% if board %}<a href="{% url 'WGNAME_activity:wbs' %}" {% if section == 'wbs' %}class="is-current"{% endif %}>WBS</a>{% endif %}
+    {% if board.has_project %}<a href="{% url 'WGNAME_activity:gantt' %}" {% if section == 'gantt' %}class="is-current"{% endif %}>ガントチャート</a>{% endif %}
 </nav>
 <main>
     {% if board.state == 'stale' %}

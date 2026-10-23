@@ -13,7 +13,7 @@ Web アプリとは別のアプリとして、その一段下の URL に置く�
 | `/<WG>/activity/` | `/activity/` | トップ：紹介・構想資料への案内・チケットの様子・参加のしかた |
 | `/<WG>/activity/slides/` | `/activity/slides/` | 構想資料（スライド。ページ送りつき） |
 | `/<WG>/activity/tracker/issues/`・`…/tracker/projects/` | `/activity/tracker/…` | チケットの一覧・詳細（読むだけ） |
-| `/<WG>/activity/tracker/gantt/`・`…/tracker/wbs/` | `/activity/tracker/…` | ガントチャート（Project を使う WG だけ）・WBS |
+| `/<WG>/activity/tracker/wbs/`・`…/tracker/gantt/` | `/activity/tracker/…` | WBS・ガントチャート（Project を使う WG だけ） |
 | `/<WG>/` | `/` | WG が作る Web アプリ（このスキルの外） |
 
 **チケットは GitHub に書く。** 会員が WG のリポジトリの Issue と、org の Project（ステータス・
@@ -230,8 +230,8 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/wg-activity/scripts/install.py" <WG の名�
 | トップ | 紹介、構想資料の案内、チケットの件数と完了の割合、期日が 14 日以内・過ぎた未完了のチケット、最近の動き 5 件、プロジェクトごとの進み具合、関連リンク、参加のしかた（WG 一覧の「WG に参加」へ）、「GitHub で新しいチケット」 |
 | 構想資料 | トップの「スライドを見る」とナビの「構想資料」から別タブで開き、「閉じる」で戻る。スライド 1 枚ずつのページ送り（ボタン・キー・スワイプ、`#s<番号>` で直接開ける）。JS が無ければ縦に並ぶ |
 | チケット | GitHub の Issue（PR は除く。500 件まで）の一覧・詳細。状態／プロジェクト／トラッカー／ステータス／優先度で絞り込み、主な列で並べ替え（優先度とステータスは Project の選択肢の順）、25 件ごとのページング。各チケットに「GitHub で開く」、一覧に「GitHub で新しいチケット」「GitHub のボード」（別タブ） |
-| ガントチャート | 開始日〜期日のあるチケットを横棒で並べる（開始日だけ・期日だけなら 1 日）。今日の線、未完了・期日を過ぎた未完了・完了の色分け、進捗率の濃い帯。表は月曜〜日曜の区切りで、長いときは横に送る。Project を使っていない WG ではナビに出ず 404 |
 | WBS | GitHub の sub-issue の親子で、親の下に子を字下げして並べ、親に「子の完了 n / m」を出す。親がほかのリポジトリの Issue なら一番上の段に置く。Project が無くても出る |
+| ガントチャート | 開始日〜期日のあるチケットを横棒で並べる（開始日だけ・期日だけなら 1 日）。今日の線、未完了・期日を過ぎた未完了・完了の色分け、進捗率の濃い帯。表は月曜〜日曜の区切りで、長いときは横に送る。Project を使っていない WG ではナビに出ず 404 |
 | 読み方 | `github.py`（鍵の選び方と GraphQL）、`tickets.py`（チケットの形・5 分のキャッシュ・失敗したら最後に読めた分）、`body.py`（本文の HTML を許可リストで削る） |
 | 見た目 | Redmine 風。CSS は `templates/<WG>_activity/base.html` に直書き、外部依存なし。スマートフォンでは表が縦に並ぶ |
 
